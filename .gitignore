@@ -147,3 +147,13 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# weight
+weight/
+
+# Python（仅用于 pth -> onnx 转换）
+.venv/
+__pycache__/
+
+# IDE
+.trae-html-share-packages/

@@ -1,0 +1,413 @@
+:root {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --border: #e2e5ea;
+  --text: #1f2328;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --accent-soft: #eff4ff;
+  --fake: #b91c1c;
+  --fake-soft: #fef2f2;
+  --real: #047857;
+  --real-soft: #ecfdf5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.wrap {
+  width: min(1040px, calc(100% - 32px));
+  margin: 0 auto;
+}
+
+.page-header {
+  padding: 28px 0 20px;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+main {
+  padding-bottom: 8px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panel-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.hint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.panel-head .hint {
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+
+}
+
+/* 按钮 */
+.btn {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn:hover:not(:disabled) {
+  background: #f7f8fa;
+  border-color: #cfd4dc;
+}
+
+.btn:disabled {
+  color: #9aa1ab;
+  cursor: not-allowed;
+  background: #fafbfc;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.btn-primary:disabled {
+  background: #93b0f5;
+  border-color: #93b0f5;
+  color: #fff;
+}
+
+/* 模型 */
+.model-row {
+  display: flex;
+  gap: 10px;
+}
+
+select {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+  color: var(--text);
+}
+
+select:disabled {
+  color: var(--muted);
+  background: #fafbfc;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.badge-idle {
+  background: #f3f4f6;
+  color: var(--muted);
+}
+
+.badge-loading {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.badge-ready {
+  background: var(--real-soft);
+  color: var(--real);
+}
+
+.badge-error {
+  background: var(--fake-soft);
+  color: var(--fake);
+}
+
+.progress {
+  height: 6px;
+  margin-top: 14px;
+  background: #eef0f3;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width 0.2s ease;
+}
+
+.progress.indeterminate .progress-bar {
+  width: 35%;
+  animation: slide 1.1s ease-in-out infinite;
+}
+
+@keyframes slide {
+  0% { margin-left: -35%; }
+  100% { margin-left: 100%; }
+}
+
+/* 上传区 */
+.dropzone {
+  border: 1px dashed #cfd4dc;
+  border-radius: 8px;
+  padding: 22px 16px;
+  text-align: center;
+  background: #fafbfc;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dropzone.dragover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.dropzone-title {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.dropzone .hint {
+  margin-top: 12px;
+}
+
+/* 统计 */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+.stat {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.stat-label {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.text-fake {
+  color: var(--fake);
+}
+
+.text-real {
+  color: var(--real);
+}
+
+.histogram-block {
+  margin-top: 16px;
+}
+
+.histogram {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  align-items: end;
+  gap: 6px;
+  height: 96px;
+  margin-top: 8px;
+}
+
+.histogram-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 4px;
+}
+
+.histogram-bar {
+  background: #dbe6ff;
+  border-radius: 3px 3px 0 0;
+  min-height: 0;
+}
+
+.histogram-bar.has-value {
+  background: var(--accent);
+}
+
+.histogram-label {
+  text-align: center;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* 结果表 */
+.table-wrap {
+  max-height: 540px;
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid #f0f2f4;
+  vertical-align: middle;
+}
+
+th {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 1;
+}
+
+.col-thumb { width: 52px; }
+.col-verdict { width: 70px; }
+.col-prob { width: 90px; }
+.col-time { width: 80px; }
+.col-state { width: 110px; }
+
+.thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 5px;
+  background: #f0f2f4;
+  display: block;
+}
+
+.filename {
+  max-width: 460px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.tag-fake {
+  background: var(--fake-soft);
+  color: var(--fake);
+}
+
+.tag-real {
+  background: var(--real-soft);
+  color: var(--real);
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.state-error {
+  color: var(--fake);
+}
+
+.empty {
+  margin: 18px 0 10px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.page-footer {
+  padding: 8px 0 28px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .filename {
+    max-width: 180px;
+  }
+
+  .col-time,
+  .col-state {
+    display: none;
+  }
+}

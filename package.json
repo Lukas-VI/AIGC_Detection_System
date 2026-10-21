@@ -1,0 +1,21 @@
+{
+  "name": "aigc-detection-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "基于 Effort (CLIP-L/14) 的 AI 生成图像鉴别平台",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.22.3",
+    "multer": "^2.4.0",
+    "onnxruntime-node": "^1.30.0",
+    "sharp": "^0.34.5"
+  }
+}

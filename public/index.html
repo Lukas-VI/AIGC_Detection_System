@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 生成图像鉴别平台</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="page-header">
+    <div class="wrap">
+      <h1>AI 生成图像鉴别平台</h1>
+      <p class="subtitle">Effort · CLIP ViT-L/14 · 二分类检测（Real / Fake）</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- 模型选择与加载 -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>检测模型</h2>
+        <span id="model-badge" class="badge badge-idle">未加载</span>
+      </div>
+
+      <div class="model-row">
+        <select id="model-select" aria-label="选择检测模型"></select>
+        <button id="load-model" class="btn btn-primary">加载模型</button>
+      </div>
+
+      <div id="load-progress" class="progress" hidden>
+        <div id="load-progress-bar" class="progress-bar"></div>
+      </div>
+      <p id="model-status" class="hint">正在读取模型列表…</p>
+    </section>
+
+    <!-- 图片输入 -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>图片输入</h2>
+        <span id="queue-summary" class="hint"></span>
+      </div>
+
+      <div id="dropzone" class="dropzone">
+        <p class="dropzone-title">拖拽图片到此处，或</p>
+        <div class="actions">
+          <button id="pick-files" class="btn">选择图片</button>
+          <button id="pick-dir" class="btn">选择文件夹</button>
+        </div>
+        <p class="hint">支持 JPG / PNG / WebP / TIFF / BMP，可多选；文件夹会递归读取其中的图片。</p>
+        <input id="file-input" type="file" accept="image/*" multiple hidden>
+        <input id="dir-input" type="file" webkitdirectory directory multiple hidden>
+      </div>
+      <p id="upload-hint" class="hint"></p>
+    </section>
+
+    <!-- 统计 -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>统计</h2>
+        <span id="avg-time" class="hint"></span>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><span class="stat-label">图片总数</span><strong id="stat-total">0</strong></div>
+        <div class="stat"><span class="stat-label">已检测</span><strong id="stat-done">0</strong></div>
+        <div class="stat"><span class="stat-label">伪造</span><strong id="stat-fake" class="text-fake">0</strong></div>
+        <div class="stat"><span class="stat-label">真实</span><strong id="stat-real" class="text-real">0</strong></div>
+        <div class="stat"><span class="stat-label">伪造占比</span><strong id="stat-ratio">—</strong></div>
+        <div class="stat"><span class="stat-label">平均伪造概率</span><strong id="stat-avg">—</strong></div>
+      </div>
+
+      <div class="histogram-block">
+        <p class="hint">伪造概率分布</p>
+        <div id="histogram" class="histogram"></div>
+      </div>
+    </section>
+
+    <!-- 结果 -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>鉴别结果</h2>
+        <div class="actions">
+          <button id="export-json" class="btn" disabled>导出 JSON</button>
+          <button id="clear-results" class="btn" disabled>清空</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-thumb">预览</th>
+              <th>文件名</th>
+              <th class="col-verdict">结果</th>
+              <th class="col-prob">伪造概率</th>
+              <th class="col-time">耗时</th>
+              <th class="col-state">状态</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+        <p id="results-empty" class="empty">尚未添加图片。</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-footer wrap">
+    模型：CLIP ViT-L/14 + Effort 正交子空间分解微调 · 概率为模型输出的 Fake 类别置信度
+  </footer>
+
+  <script src="./app.js" type="module"></script>
+</body>
+</html>
