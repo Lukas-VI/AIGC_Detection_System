@@ -1,0 +1,2 @@
+# AIGC_Detection_System
+AIGC_Detection_System
