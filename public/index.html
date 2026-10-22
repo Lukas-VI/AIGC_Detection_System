@@ -11,7 +11,7 @@
   <header class="page-header">
     <div class="wrap">
       <h1>AI 生成图像鉴别平台</h1>
-      <p class="subtitle">Effort · CLIP ViT-L/14 · 二分类检测（Real / Fake）</p>
+      <p class="subtitle">基于Effort CLIP ViT-L/14 模型的二分类检测</p>
     </div>
   </header>
 
@@ -37,7 +37,7 @@
     <!-- 图片输入 -->
     <section class="panel">
       <div class="panel-head">
-        <h2>图片输入</h2>
+        <h2>图片输入</h2> 
         <span id="queue-summary" class="hint"></span>
       </div>
 
@@ -71,7 +71,6 @@
       </div>
 
       <div class="histogram-block">
-        <p class="hint">伪造概率分布</p>
         <div id="histogram" class="histogram"></div>
       </div>
     </section>
@@ -87,26 +86,51 @@
       </div>
 
       <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th class="col-thumb">预览</th>
-              <th>文件名</th>
-              <th class="col-verdict">结果</th>
-              <th class="col-prob">伪造概率</th>
-              <th class="col-time">耗时</th>
-              <th class="col-state">状态</th>
-            </tr>
-          </thead>
-          <tbody id="results-body"></tbody>
-        </table>
-        <p id="results-empty" class="empty">尚未添加图片。</p>
+        <!-- 表头：不参与滚动 -->
+        <div class="table-header">
+          <table>
+            <colgroup>
+              <col class="col-thumb">
+              <col>
+              <col class="col-verdict">
+              <col class="col-prob">
+              <col class="col-time">
+              <col class="col-state">
+            </colgroup>
+            <thead>
+              <tr>
+                <th>预览</th>
+                <th>文件名</th>
+                <th>结果</th>
+                <th>伪造概率</th>
+                <th>耗时</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+          </table>
+        </div>
+
+        <!-- 表体：在这个区域内滚动，滚动条自然只在表体出现 -->
+        <div class="table-body">
+          <table>
+            <colgroup>
+              <col class="col-thumb">
+              <col>
+              <col class="col-verdict">
+              <col class="col-prob">
+              <col class="col-time">
+              <col class="col-state">
+            </colgroup>
+            <tbody id="results-body"></tbody>
+          </table>
+          <p id="results-empty" class="empty">尚未添加图片。</p>
+        </div>
       </div>
     </section>
   </main>
 
   <footer class="page-footer wrap">
-    模型：CLIP ViT-L/14 + Effort 正交子空间分解微调 · 概率为模型输出的 Fake 类别置信度
+    ©2026
   </footer>
 
   <script src="./app.js" type="module"></script>

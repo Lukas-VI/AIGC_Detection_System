@@ -76,7 +76,6 @@ function currentModel() {
   const loading = state.models.find((model) => model.status === 'loading');
   if (loading) return loading;
 
-  // 用户在下拉框里选择了另一个模型时，展示该模型的状态
   const selected = selectedModel();
   if (selected && selected.id !== state.activeId) return selected;
 
@@ -380,7 +379,13 @@ async function startDetection() {
 }
 
 function renderStats() {
-  const done = state.files.filter((item) => item.status === 'done');
+  // 👇 核心修复：严格校验 result 数据结构，防止渲染异常导致检测循环崩溃
+  const done = state.files.filter((item) => 
+    item.status === 'done' && 
+    item.result && 
+    typeof item.result.fakeProbability === 'number'
+  );
+  
   const fake = done.filter((item) => item.result.label === 'fake').length;
   const real = done.length - fake;
 
@@ -402,31 +407,248 @@ function renderStats() {
   renderHistogram(done);
 }
 
+/* ===== 伪造概率分布（KDE 平滑曲线 + 交互） ===== */
+
+const HIST_SAMPLES = 180; 
+let histAnimationFrame = null;
+let currentDensities = new Array(HIST_SAMPLES + 1).fill(0);
+let currentProbs = []; 
+let currentMaxDensity = 1; 
+
+const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+function buildHistogramSkeleton() {
+  const W = 600, H = 170;
+  const pad = { l: 24, r: 24, t: 20, b: 32 };
+  const innerW = W - pad.l - pad.r;
+  const innerH = H - pad.t - pad.b;
+  const baseY = pad.t + innerH;
+  const px = (t) => pad.l + t * innerW;
+
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  const grid = ticks.map((t) => 
+    `<line class="hist-grid" x1="${px(t)}" y1="${pad.t}" x2="${px(t)}" y2="${baseY}"/>`
+  ).join('');
+  
+  const axis = ticks.map((t) => {
+    const anchor = t === 0 ? 'start' : t === 1 ? 'end' : 'middle';
+    return `<text class="hist-tick" x="${px(t)}" y="${H - 8}" text-anchor="${anchor}">${t.toFixed(2)}</text>`;
+  }).join('');
+
+  el.histogram.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="伪造概率分布">
+      <defs>
+        <linearGradient id="hist-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop class="hist-stop-top" offset="0%"/>
+          <stop class="hist-stop-bottom" offset="100%"/>
+        </linearGradient>
+      </defs>
+      ${grid}
+      <line class="hist-baseline" x1="${pad.l}" y1="${baseY}" x2="${W - pad.r}" y2="${baseY}"/>
+      <path class="hist-area" d="" />
+      <path class="hist-line" d="" />
+      
+      <line class="hist-hover-line" x1="0" y1="${pad.t}" x2="0" y2="${baseY}" style="opacity: 0;" />
+      <circle class="hist-hover-dot" r="4" cx="0" cy="0" style="opacity: 0;" />
+      
+      <text class="hist-empty" x="${W / 2}" y="${pad.t + innerH / 2}" text-anchor="middle" style="opacity: 1; transition: opacity 0.3s;">暂无数据</text>
+      ${axis}
+      
+      <rect class="hist-interact-layer" x="${pad.l}" y="${pad.t}" width="${innerW}" height="${innerH}" fill="transparent" style="cursor: crosshair;" />
+    </svg>
+    <div class="hist-tooltip"></div>
+  `;
+
+  bindHistogramEvents();
+}
+
+function updateHistogramPaths(densities, maxDensity) {
+  const W = 600, H = 170;
+  const pad = { l: 24, r: 24, t: 20, b: 32 };
+  const innerW = W - pad.l - pad.r;
+  const innerH = H - pad.t - pad.b;
+  const baseY = pad.t + innerH;
+  const px = (t) => pad.l + t * innerW;
+
+  const py = (d) => pad.t + innerH - (d / maxDensity) * innerH;
+
+  const linePath = densities.map((d, i) => {
+    const x = px(i / HIST_SAMPLES).toFixed(2);
+    const y = py(d).toFixed(2);
+    return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+  }).join(' ');
+
+  const areaPath = `${linePath} L${px(1).toFixed(2)},${baseY} L${px(0).toFixed(2)},${baseY} Z`;
+
+  const lineEl = el.histogram.querySelector('.hist-line');
+  const areaEl = el.histogram.querySelector('.hist-area');
+  
+  if (lineEl && areaEl) {
+    lineEl.setAttribute('d', linePath);
+    areaEl.setAttribute('d', areaPath);
+  }
+}
+
+function gaussianKde(values, bandwidth) {
+  const n = values.length;
+  const scale = 1 / (n * bandwidth * Math.sqrt(2 * Math.PI));
+  return (x) => {
+    let sum = 0;
+    for (let i = 0; i < n; i += 1) {
+      const z = (x - values[i]) / bandwidth;
+      sum += Math.exp(-0.5 * z * z);
+    }
+    return sum * scale;
+  };
+}
+
+function pickBandwidth(values) {
+  const n = values.length;
+  if (n <= 1) return 0.12;
+  const mean = values.reduce((sum, v) => sum + v, 0) / n;
+  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (n - 1);
+  const sd = Math.sqrt(variance) || 0.15;
+  const silverman = 1.06 * sd * n ** -0.2;
+  return Math.min(0.25, Math.max(0.06, silverman));
+}
+
 function renderHistogram(done) {
-  const buckets = new Array(10).fill(0);
-  for (const item of done) {
-    const index = Math.min(9, Math.floor(item.result.fakeProbability * 10));
-    buckets[index] += 1;
+  // 👇 核心修复：过滤掉无效数据，防止污染图表计算
+  currentProbs = done.map((item) => item.result.fakeProbability).filter((v) => typeof v === 'number');
+
+  if (!el.histogram.querySelector('svg')) {
+    buildHistogramSkeleton();
   }
 
-  const max = Math.max(1, ...buckets);
-  el.histogram.innerHTML = '';
+  const lineEl = el.histogram.querySelector('.hist-line');
+  const areaEl = el.histogram.querySelector('.hist-area');
+  const emptyEl = el.histogram.querySelector('.hist-empty');
 
-  buckets.forEach((count, index) => {
-    const column = document.createElement('div');
-    column.className = 'histogram-col';
+  if (emptyEl) {
+    emptyEl.style.opacity = currentProbs.length === 0 ? '1' : '0';
+  }
 
-    const bar = document.createElement('div');
-    bar.className = count > 0 ? 'histogram-bar has-value' : 'histogram-bar';
-    bar.style.height = count > 0 ? `${Math.max(4, (count / max) * 100)}%` : '0';
-    bar.title = `${(index / 10).toFixed(1)}–${((index + 1) / 10).toFixed(1)}：${count} 张`;
+  let targetDensities = new Array(HIST_SAMPLES + 1).fill(0);
+  let targetPeak = 0;
+  
+  if (currentProbs.length > 0) {
+    const bandwidth = pickBandwidth(currentProbs);
+    const raw = gaussianKde(currentProbs, bandwidth);
+    const density = (x) => raw(x) + raw(-x) + raw(2 - x);
+    
+    for (let i = 0; i <= HIST_SAMPLES; i += 1) {
+      targetDensities[i] = density(i / HIST_SAMPLES);
+      if (targetDensities[i] > targetPeak) {
+        targetPeak = targetDensities[i];
+      }
+    }
+  }
 
-    const label = document.createElement('span');
-    label.className = 'histogram-label';
-    label.textContent = index === 0 ? '0' : (index / 10).toFixed(1);
+  let startPeak = 0;
+  for (let i = 0; i <= HIST_SAMPLES; i++) {
+    if (currentDensities[i] > startPeak) startPeak = currentDensities[i];
+  }
 
-    column.append(bar, label);
-    el.histogram.appendChild(column);
+  if (currentProbs.length === 0 && startPeak === 0) {
+    if (lineEl) lineEl.style.opacity = '0';
+    if (areaEl) areaEl.style.opacity = '0';
+    return;
+  }
+
+  if (lineEl) lineEl.style.opacity = '1';
+  if (areaEl) areaEl.style.opacity = '1';
+
+  if (histAnimationFrame) cancelAnimationFrame(histAnimationFrame);
+  
+  const startDensities = [...currentDensities];
+  const startTime = performance.now();
+  const duration = 450; 
+
+  currentMaxDensity = Math.max(startPeak, targetPeak, 1e-6);
+
+  function step(time) {
+    const t = Math.min(1, (time - startTime) / duration);
+    const ease = easeOutCubic(t);
+    
+    currentDensities = targetDensities.map((target, i) => 
+      startDensities[i] + (target - startDensities[i]) * ease
+    );
+    
+    updateHistogramPaths(currentDensities, currentMaxDensity);
+
+    if (t < 1) {
+      histAnimationFrame = requestAnimationFrame(step);
+    } else {
+      histAnimationFrame = null;
+      if (currentProbs.length === 0) {
+        if (lineEl) lineEl.style.opacity = '0';
+        if (areaEl) areaEl.style.opacity = '0';
+        currentDensities = new Array(HIST_SAMPLES + 1).fill(0);
+      }
+    }
+  }
+  histAnimationFrame = requestAnimationFrame(step);
+}
+
+function bindHistogramEvents() {
+  const interactLayer = el.histogram.querySelector('.hist-interact-layer');
+  const hoverLine = el.histogram.querySelector('.hist-hover-line');
+  const hoverDot = el.histogram.querySelector('.hist-hover-dot');
+  const tooltip = el.histogram.querySelector('.hist-tooltip');
+
+  if (!interactLayer || !hoverLine || !hoverDot || !tooltip) return;
+
+  const W = 600, H = 170;
+  const pad = { l: 24, r: 24, t: 20, b: 32 };
+  const innerW = W - pad.l - pad.r;
+  const innerH = H - pad.t - pad.b;
+
+  interactLayer.addEventListener('mousemove', (e) => {
+    if (currentProbs.length === 0) return;
+
+    const rect = el.histogram.querySelector('svg').getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const mouseX = (e.clientX - rect.left) * scaleX;
+
+    let p = (mouseX - pad.l) / innerW;
+    p = Math.max(0, Math.min(1, p));
+
+    const indexFloat = p * HIST_SAMPLES;
+    const i0 = Math.floor(indexFloat);
+    const i1 = Math.min(HIST_SAMPLES, i0 + 1);
+    const frac = indexFloat - i0;
+    const densityValue = currentDensities[i0] * (1 - frac) + currentDensities[i1] * frac;
+    const py = pad.t + innerH - (densityValue / currentMaxDensity) * innerH;
+
+    const px = pad.l + p * innerW;
+    hoverLine.setAttribute('x1', px);
+    hoverLine.setAttribute('x2', px);
+    hoverLine.style.opacity = '1';
+
+    hoverDot.setAttribute('cx', px);
+    hoverDot.setAttribute('cy', py);
+    hoverDot.style.opacity = '1';
+
+    const win = 0.1;
+    const count = currentProbs.filter(v => v >= p - win && v <= p + win).length;
+
+    const pStart = Math.max(0, p - win).toFixed(2);
+    const pEnd = Math.min(1, p + win).toFixed(2);
+    tooltip.innerHTML = `<strong>${count}</strong> 张 <span style="opacity:0.6; margin-left:4px;">[${pStart} - ${pEnd}]</span>`;
+
+    const leftPercent = (px / W) * 100;
+    let tooltipX = leftPercent;
+    // if (leftPercent < 12) tooltipX = 12;
+    // if (leftPercent > 90) tooltipX = 90;
+
+    tooltip.style.left = `${tooltipX}%`;
+    tooltip.style.opacity = '1';
+  });
+
+  interactLayer.addEventListener('mouseleave', () => {
+    hoverLine.style.opacity = '0';
+    hoverDot.style.opacity = '0';
+    tooltip.style.opacity = '0';
   });
 }
 
@@ -497,8 +719,7 @@ function bindEvents() {
 
 async function init() {
   bindEvents();
-  renderStats();
-  renderHistogram([]);
+  renderStats(); // 这里已经包含了图表初始化，不需要额外再写 renderHistogram([])
 
   try {
     await refreshModels();

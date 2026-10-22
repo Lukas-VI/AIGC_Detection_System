@@ -1,6 +1,6 @@
 # AIGC_Detection_System
 
-基于 [Effort](https://github.com/YZY-stack/Effort-AIGI-Detection)（CLIP ViT-L/14 + 正交子空间分解）的 AI 生成图像鉴别平台。
+基于 [Effort](https://github.com/YZY-stack/Effort-AIGI-Detection)的 AI 生成图像鉴别平台。
 
 - Node.js 单进程服务，页面为单页应用
 - 支持单张 / 整个文件夹上传，逐张检测
@@ -18,6 +18,20 @@ npm start
 默认访问 `http://localhost:3000`。若端口被占用，服务会自动尝试后续端口；也可在 PowerShell 中用 `$env:PORT=3100; npm start` 指定端口。
 
 ## 模型权重
+
+在谷歌网盘上下载权重
+
+training on FaceForensics++:
+
+`https://drive.google.com/file/d/1GlJ1y4xmTdqV0FfIcyBwNNU6cQird9DR/view`
+
+training on GenImage (sdv1.4):
+
+`https://drive.google.com/file/d/1UXf1hC9FC1yV93uKwXSkdtepsgpIAU9d/view`
+
+training on Chameleon (sdv1.4):
+
+`https://drive.google.com/file/d/1m4fyJecABU-Yk3bJ4b1WhUwQa0xCkMLI/view`
 
 `weight/` 目录下放置 Effort 的 `.pth` 权重，平台从该目录自动发现模型：
 
