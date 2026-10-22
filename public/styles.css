@@ -134,7 +134,7 @@ body {
 }
 
 .wrap {
-  width: min(960px, calc(100% - 40px));
+  width: min(1360px, calc(100% - 40px));
   margin: 0 auto;
 }
 
@@ -160,12 +160,34 @@ main {
   padding-bottom: 8px;
 }
 
+/* ===== 新布局：双列网格 ===== */
+.layout-grid {
+  display: grid;
+  grid-template-columns: 7fr 3fr;
+  gap: 20px;
+  align-items: start; /* 防止左右列高度互相拉伸 */
+  padding-top: 24px;
+  padding-bottom: 40px;
+}
+
+/* 左列容器 */
+.col-left {
+  display: flex;
+  flex-direction: column;
+  gap: 16px; /* 替换掉原 panel 的 margin-bottom */
+}
+
+/* 右列容器 */
+.col-right {
+  height: 100%;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 20px 22px;
-  margin-bottom: 16px;
+  margin-bottom: 0px;
   box-shadow: var(--shadow-sm);
 }
 
@@ -447,7 +469,7 @@ select:disabled {
   position: absolute;
   top: 0; /* 初始位置 */
   transform: translate(-50%, -30%); /* 居中并上移 */
-  background: rgba(17, 24, 39, 0.9); /* 深色半透明背景 */
+  background: var(--text); /* 深色半透明背景 */
   backdrop-filter: blur(4px); /* 毛玻璃效果 */
   color: #fff;
   padding: 6px 14px;
@@ -546,6 +568,44 @@ select:disabled {
   font-size: 10px;
   white-space: nowrap;
 } */
+
+/* ===== 右侧结果面板特调 ===== */
+.panel-results {
+  display: flex;
+  flex-direction: column;
+  /* 固定高度：屏幕高度减去 TopBar 和上下边距 */
+  height: calc(100vh - 120px); 
+  min-height: 500px;
+  position: sticky;
+  top: 88px; /* 滚动时吸附在 TopBar 下方（TopBar 约 64px 高） */
+}
+
+/* 确保 table-wrap 在右侧面板里能撑满剩余空间 */
+.panel-results .table-wrap {
+  flex: 1;
+  min-height: 0; /* 必须加，否则 Flex 子项无法缩小导致溢出 */
+  max-height: none; /* 取消原来的 max-height: 540px */
+  display: flex;
+  flex-direction: column;
+}
+
+/* 右侧表格列宽微调，因为空间变窄了 */
+.panel-results .col-thumb { width: 48px; }
+.panel-results .col-verdict { width: 64px; }
+.panel-results .col-prob { width: 76px; }
+.panel-results .col-time { width: 70px; }
+.panel-results .col-state { width: 60px; }
+.panel-results .filename { max-width: none; } /* 让文字自适应 */
+
+.filename {
+  max-width: 0; /* 👈 最关键的一行：告诉浏览器不要根据内容撑开宽度 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  /* 给文件名和预览图之间加一点间距，看起来不拥挤 */
+  padding-left: 12px; 
+}
 
 /* 1. 外层容器：只做边框和圆角，不滚动 */
 .table-wrap {
@@ -680,17 +740,135 @@ tbody tr:last-child td {
   text-align: center;
 }
 
-@media (max-width: 760px) {
-  .stats {
-    grid-template-columns: repeat(3, 1fr);
+/* =========================================
+   桌面端双列布局 (>= 1025px)
+   ========================================= */
+@media (min-width: 1025px) {
+  .layout-grid {
+    display: grid;
+    align-items: stretch;
+    grid-template-columns: 7fr 3fr;
+    gap: 24px;
+    padding-top: 24px;
+    padding-bottom: 40px;
   }
 
-  .filename {
-    max-width: 180px;
+  .col-left {
+    display: flex;
+    flex-direction: column;
+    gap: 20px; /* 左侧卡片之间的间隙 */
   }
 
-  .col-time,
-  .col-state {
-    display: none;
+    /* 👇 核心修复：阻止右列被内容撑开，并让它撑满网格高度 */
+  .col-right {
+    position: relative;
+    min-height: 0;     /* 打破默认的 min-height: auto */
+    min-width: 0;
+
+  }
+  
+  /* 去除面板原有的下边距，改用父级 gap 控制 */
+  .panel {
+    margin-bottom: 0;
+  }
+
+  /* 右侧面板吸顶与独立滚动 */
+  .panel-results {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;  /* 防止溢出 */
+    height: 100%;
+    min-height: 0;
+  }
+
+  .panel-results .table-wrap {
+    flex: 1;
+    min-height: 0; /* Flex 子项滚动的关键 */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+  }
+  .panel-results .table-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+  }
+
+  /* 因为右侧列变窄，智能隐藏次要列，只留核心数据 */
+  .panel-results .col-time,
+  .panel-results .col-state,
+  .panel-results th:nth-child(5),
+  .panel-results th:nth-child(6),
+  .panel-results td:nth-child(5),
+  .panel-results td:nth-child(6) {
+    display: none; 
+  }
+
+  .panel-results .col-thumb { width: 50px; }
+  .panel-results .col-verdict { width: 64px; }
+  .panel-results .col-prob { width: 76px; }
+}
+
+/* =========================================
+   移动端/平板端单列布局 (<= 1024px)
+   ========================================= */
+@media (max-width: 1024px) {
+  .layout-grid {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch; /* 确保所有列在交叉轴上撑满 */
+    gap: 16px;
+    padding-top: 20px;
+    padding-bottom: 40px;
+  }
+
+  /* 强制左右两列宽度为 100%，保持一致 */
+  .col-left,
+  .col-right {
+    width: 100%; 
+    min-width: 0; /* 防止内部表格过宽撑破容器 */
+  }
+
+  .col-right {
+    position: static;
+  }
+
+  /* 强制结果卡片撑满，并恢复固定高度 */
+  .panel-results {
+    width: 100%;
+    height: 600px; 
+    position: static;
+  }
+
+  .panel-results .table-wrap {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* 恢复显示之前桌面端隐藏的列 */
+  .panel-results .col-time,
+  .panel-results .col-state,
+  .panel-results th:nth-child(5),
+  .panel-results th:nth-child(6),
+  .panel-results td:nth-child(5),
+  .panel-results td:nth-child(6) {
+    display: table-cell;
+  }
+}
+
+/* 针对极小屏幕（手机）的表格优化 */
+@media (max-width: 600px) {
+  .panel-results .col-time,
+  .panel-results th:nth-child(5),
+  .panel-results td:nth-child(5) {
+    display: none; /* 手机上只隐藏耗时，保留状态 */
+  }
+  
+  .table-wrap {
+    border-radius: var(--radius-sm);
   }
 }
