@@ -1,3 +1,4 @@
+/* ====== 主题变量 ====== */
 :root {
   --bg: #f4f5f7;
   --panel: #ffffff;
@@ -14,6 +15,108 @@
   --real: #059669;
   --real-soft: #ecfdf5;
   --shadow-sm: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .05);
+  
+  /* TopBar 专属 */
+  --topbar-bg: rgba(255, 255, 255, 0.85);
+  --switcher-bg: #e5e7eb;
+  --switcher-active: #ffffff;
+}
+
+/* 深色模式变量 */
+[data-theme="dark"] {
+  --bg: #0e1113;
+  --panel: #161a1d;
+  --panel-soft: #1d2227;
+  --border: #2a3037;
+  --border-strong: #475569;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --accent: #3b82f6;
+  --accent-strong: #2563eb;
+  --accent-soft: #1e3a8a;
+  --fake: #f87171;
+  --fake-soft: #451a1a;
+  --real: #34d399;
+  --real-soft: #064e3b;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, .3), 0 1px 2px rgba(0, 0, 0, .4);
+  
+  --topbar-bg: rgba(30, 41, 59, 0.85);
+  --switcher-bg: #1d2227;
+  --switcher-active: #334155;
+}
+
+/* 页面全局过渡效果 */
+body, .panel, .topbar, .table-header, .stat, .btn, select, th, td {
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+}
+
+/* ====== TopBar 样式 ====== */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--topbar-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.brand .subtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 主题切换器 */
+.theme-switcher {
+  display: flex;
+  background: var(--switcher-bg);
+  padding: 3px;
+  border-radius: 8px;
+  gap: 2px;
+}
+
+.theme-switcher button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.theme-switcher button:hover {
+  color: var(--text);
+}
+
+.theme-switcher button.active {
+  background: var(--switcher-active);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 适配手机端 */
+@media (max-width: 600px) {
+  .brand .subtitle { display: none; }
 }
 
 * {
@@ -53,13 +156,14 @@ body {
 }
 
 main {
+  padding-top: 32px;
   padding-bottom: 8px;
 }
 
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 20px;
   padding: 20px 22px;
   margin-bottom: 16px;
   box-shadow: var(--shadow-sm);
@@ -104,7 +208,7 @@ main {
 .btn {
   appearance: none;
   border: 1px solid var(--border-strong);
-  background: #fff;
+  background: var(--bg);
   color: var(--text);
   border-radius: 8px;
   padding: 8px 16px;
@@ -133,7 +237,7 @@ main {
 .btn:disabled {
   color: #9aa1ab;
   cursor: not-allowed;
-  background: #fafbfc;
+  background: var(--bg);
   border-color: var(--border);
   box-shadow: none;
 }
@@ -141,7 +245,7 @@ main {
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--bg);
   box-shadow: 0 1px 2px rgba(37, 99, 235, .25);
 }
 
@@ -153,7 +257,7 @@ main {
 .btn-primary:disabled {
   background: #93b0f5;
   border-color: #93b0f5;
-  color: #fff;
+  color: var(--bg);
   box-shadow: none;
 }
 
@@ -171,7 +275,7 @@ select {
   padding: 8px 12px;
   font-size: 13px;
   font-family: inherit;
-  background: #fff;
+  background: var(--bg);
   color: var(--text);
   transition: border-color .15s, box-shadow .15s;
 }
@@ -188,7 +292,7 @@ select:focus-visible {
 
 select:disabled {
   color: var(--muted);
-  background: #fafbfc;
+  background: var(--bg);
 }
 
 .badge {
@@ -365,7 +469,7 @@ select:disabled {
 }
 
 .hist-grid {
-  stroke: #eef0f3;
+  stroke: var(--border);
   stroke-width: 1;
 }
 
@@ -457,7 +561,7 @@ select:disabled {
 /* 2. 表头容器：固定，且预留滚动条宽度以对齐表体 */
 .table-header {
   flex: none;
-  background: #f9fafb;
+  background: var(--panel-soft);
   padding-right: 8px; /* 关键：预留出 8px 滚动条的位置，保证表头和表体一样宽 */
   border-bottom: 1px solid var(--border);
 }
@@ -467,6 +571,7 @@ select:disabled {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  background: var(--panel-soft);
 }
 
 /* 4. 定制表体的滚动条，避免太突兀 */
@@ -479,7 +584,7 @@ select:disabled {
 .table-body::-webkit-scrollbar-thumb {
   background: #d1d5db;
   border-radius: 4px;
-  border: 2px solid #fff;
+  border: 2px solid var(--border);
 }
 .table-body::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
@@ -512,6 +617,8 @@ th {
 td {
   text-align: left;
   padding: 12px 10px;
+  background: var(--panel-soft);
+  color: var(--text);
   border-bottom: 1px solid #f0f2f4;
   vertical-align: middle;
 }

@@ -718,6 +718,7 @@ function bindEvents() {
 }
 
 async function init() {
+  initTheme();
   bindEvents();
   renderStats(); // 这里已经包含了图表初始化，不需要额外再写 renderHistogram([])
 
@@ -726,6 +727,52 @@ async function init() {
   } catch (error) {
     el.modelStatus.textContent = `无法获取模型列表：${error.message}`;
   }
+}
+
+/* ===== 主题切换逻辑 ===== */
+function initTheme() {
+  const switcher = document.getElementById('theme-switcher');
+  if (!switcher) return;
+
+  const buttons = switcher.querySelectorAll('button');
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+  // 获取本地存储的主题，默认跟随系统
+  let currentTheme = localStorage.getItem('app-theme') || 'system';
+
+  function applyTheme(theme) {
+    let finalTheme = theme;
+    if (theme === 'system') {
+      finalTheme = mediaQuery.matches ? 'dark' : 'light';
+    }
+    
+    // 设置 html 标签的 data-theme 属性
+    document.documentElement.setAttribute('data-theme', finalTheme);
+    
+    // 更新按钮的激活状态
+    buttons.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.themeVal === theme);
+    });
+  }
+
+  // 初始化应用
+  applyTheme(currentTheme);
+
+  // 绑定按钮点击事件
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentTheme = btn.dataset.themeVal;
+      localStorage.setItem('app-theme', currentTheme);
+      applyTheme(currentTheme);
+    });
+  });
+
+  // 监听系统主题变化（当用户选择"跟随系统"时生效）
+  mediaQuery.addEventListener('change', () => {
+    if (localStorage.getItem('app-theme') === 'system' || !localStorage.getItem('app-theme')) {
+      applyTheme('system');
+    }
+  });
 }
 
 init();
