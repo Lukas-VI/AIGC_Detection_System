@@ -10,10 +10,18 @@
 <body>
   <header class="topbar">
     <div class="wrap topbar-inner">
-      <div class="brand">
-        <h1>AI 生成图像鉴别平台</h1>
+      <div class="topbar-left">
+        <div class="brand">
+          <h1>AI 生成图像鉴别平台</h1>
+        </div>
+
+        <nav class="nav-tabs">
+          <button class="nav-btn active" data-target="detect">检测</button>
+          <button class="nav-btn" data-target="results">结果</button>
+          <button class="nav-btn" data-target="about">关于</button>
+        </nav>
       </div>
-      
+
       <!-- 主题切换器 -->
       <div class="theme-switcher" id="theme-switcher">
         <button data-theme-val="system" title="跟随系统">
@@ -28,124 +36,199 @@
       </div>
     </div>
   </header>
+    
+  <main class="wrap view-container">
+    
+    <!-- 👇 视图一：检测（包含原来的左右双列） -->
+    <div id="view-detect" class="view active">
+      <div class="layout-grid">
+        <div class="col-left">
+          <!-- 模型选择与加载 -->
+          <section class="panel">
+            <div class="panel-head">
+              <h2>检测模型</h2>
+              <span id="model-badge" class="badge badge-idle">未加载</span>
+            </div>
 
-  <main class="wrap layout-grid">
-    <div class="col-left">
-      <!-- 模型选择与加载 -->
-      <section class="panel">
+            <div class="model-row">
+              <select id="model-select" aria-label="选择检测模型"></select>
+              <button id="load-model" class="btn btn-primary">加载模型</button>
+            </div>
+
+            <div id="load-progress" class="progress" hidden>
+              <div id="load-progress-bar" class="progress-bar"></div>
+            </div>
+            <p id="model-status" class="hint">正在读取模型列表…</p>
+          </section>
+
+          <!-- 图片输入 -->
+          <section class="panel">
+            <div class="panel-head">
+              <h2>图片输入</h2> 
+              <span id="queue-summary" class="hint"></span>
+            </div>
+
+            <div id="dropzone" class="dropzone">
+              <p class="dropzone-title">拖拽图片到此处，或</p>
+              <div class="actions">
+                <button id="pick-files" class="btn">选择图片</button>
+                <button id="pick-dir" class="btn">选择文件夹</button>
+              </div>
+              <p class="hint">支持 JPG / PNG / WebP / TIFF / BMP，可多选；文件夹会递归读取其中的图片。</p>
+              <input id="file-input" type="file" accept="image/*" multiple hidden>
+              <input id="dir-input" type="file" webkitdirectory directory multiple hidden>
+            </div>
+            <p id="upload-hint" class="hint"></p>
+          </section>
+
+          <!-- 统计 -->
+          <section class="panel">
+            <div class="panel-head">
+              <h2>统计</h2>
+              <span id="avg-time" class="hint"></span>
+            </div>
+
+            <div class="stats">
+              <div class="stat"><span class="stat-label">图片总数</span><strong id="stat-total">0</strong></div>
+              <div class="stat"><span class="stat-label">已检测</span><strong id="stat-done">0</strong></div>
+              <div class="stat"><span class="stat-label">伪造</span><strong id="stat-fake" class="text-fake">0</strong></div>
+              <div class="stat"><span class="stat-label">真实</span><strong id="stat-real" class="text-real">0</strong></div>
+              <div class="stat"><span class="stat-label">伪造占比</span><strong id="stat-ratio">—</strong></div>
+              <div class="stat"><span class="stat-label">平均伪造概率</span><strong id="stat-avg">—</strong></div>
+            </div>
+
+            <div class="histogram-block">
+              <div id="histogram" class="histogram"></div>
+            </div>
+          </section>
+        </div>
+        <div class="col-right">
+          <!-- 结果 -->
+          <section class="panel panel-results">
+            <div class="panel-head">
+              <h2>鉴别结果</h2>
+              <div class="actions">
+                <button id="export-json" class="btn" disabled>导出 JSON</button>
+                <button id="clear-results" class="btn" disabled>清空</button>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <!-- 表头：不参与滚动 -->
+              <div class="table-header">
+                <table>
+                  <colgroup>
+                    <col class="col-thumb">
+                    <col>
+                    <col class="col-verdict">
+                    <col class="col-prob">
+                    <col class="col-time">
+                    <col class="col-state">
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>预览</th>
+                      <th>文件名</th>
+                      <th>结果</th>
+                      <th>伪造概率</th>
+                      <th>耗时</th>
+                      <th>状态</th>
+                    </tr>
+                  </thead>
+                </table>
+              </div>
+
+              <!-- 表体：在这个区域内滚动，滚动条自然只在表体出现 -->
+              <div class="table-body">
+                <table>
+                  <tbody id="results-body"></tbody>
+                  <colgroup>
+                    <col class="col-thumb">
+                    <col>
+                    <col class="col-verdict">
+                    <col class="col-prob">
+                    <col class="col-time">
+                    <col class="col-state">
+                  </colgroup>
+                  <tbody id="results-body"></tbody>
+                </table>
+                <p id="results-empty" class="empty">尚未添加图片。</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- 👇 视图二：结果（纯大宽表，适合详情分析） -->
+    <div id="view-results" class="view">
+      <section class="panel" style="min-height: 70vh;">
         <div class="panel-head">
-          <h2>检测模型</h2>
-          <span id="model-badge" class="badge badge-idle">未加载</span>
-        </div>
-
-        <div class="model-row">
-          <select id="model-select" aria-label="选择检测模型"></select>
-          <button id="load-model" class="btn btn-primary">加载模型</button>
-        </div>
-
-        <div id="load-progress" class="progress" hidden>
-          <div id="load-progress-bar" class="progress-bar"></div>
-        </div>
-        <p id="model-status" class="hint">正在读取模型列表…</p>
-      </section>
-
-      <!-- 图片输入 -->
-      <section class="panel">
-        <div class="panel-head">
-          <h2>图片输入</h2> 
-          <span id="queue-summary" class="hint"></span>
-        </div>
-
-        <div id="dropzone" class="dropzone">
-          <p class="dropzone-title">拖拽图片到此处，或</p>
+          <h2>全量检测结果</h2>
           <div class="actions">
-            <button id="pick-files" class="btn">选择图片</button>
-            <button id="pick-dir" class="btn">选择文件夹</button>
+            <button id="export-json-full" class="btn">导出 JSON</button>
           </div>
-          <p class="hint">支持 JPG / PNG / WebP / TIFF / BMP，可多选；文件夹会递归读取其中的图片。</p>
-          <input id="file-input" type="file" accept="image/*" multiple hidden>
-          <input id="dir-input" type="file" webkitdirectory directory multiple hidden>
         </div>
-        <p id="upload-hint" class="hint"></p>
-      </section>
+        <!-- 提示：如果你想在"结果"页放一个全屏大表格，可以把右侧的 table-wrap 移到这里来 -->
+          <div class="table-wrap">
+            <!-- 表头：不参与滚动 -->
+            <div class="table-header">
+              <table>
+                <colgroup>
+                  <col class="col-thumb">
+                  <col>
+                  <col class="col-verdict">
+                  <col class="col-prob">
+                  <col class="col-time">
+                  <col class="col-state">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>预览</th>
+                    <th>文件名</th>
+                    <th>结果</th>
+                    <th>伪造概率</th>
+                    <th>耗时</th>
+                    <th>状态</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
 
-      <!-- 统计 -->
+            <!-- 表体：在这个区域内滚动，滚动条自然只在表体出现 -->
+            <div class="table-body">
+              <table>
+                <colgroup>
+                  <col class="col-thumb">
+                  <col>
+                  <col class="col-verdict">
+                  <col class="col-prob">
+                  <col class="col-time">
+                  <col class="col-state">
+                </colgroup>
+                <tbody id="results-body-full"></tbody>
+              </table>
+              <p id="results-empty" class="empty">尚未添加图片。</p>
+            </div>
+          </div>
+      </section>
+    </div>
+
+    <!-- 👇 视图三：关于 -->
+    <div id="view-about" class="view">
       <section class="panel">
         <div class="panel-head">
-          <h2>统计</h2>
-          <span id="avg-time" class="hint"></span>
+          <h2>关于平台</h2>
         </div>
-
-        <div class="stats">
-          <div class="stat"><span class="stat-label">图片总数</span><strong id="stat-total">0</strong></div>
-          <div class="stat"><span class="stat-label">已检测</span><strong id="stat-done">0</strong></div>
-          <div class="stat"><span class="stat-label">伪造</span><strong id="stat-fake" class="text-fake">0</strong></div>
-          <div class="stat"><span class="stat-label">真实</span><strong id="stat-real" class="text-real">0</strong></div>
-          <div class="stat"><span class="stat-label">伪造占比</span><strong id="stat-ratio">—</strong></div>
-          <div class="stat"><span class="stat-label">平均伪造概率</span><strong id="stat-avg">—</strong></div>
-        </div>
-
-        <div class="histogram-block">
-          <div id="histogram" class="histogram"></div>
+        <div class="about-content">
+          <p>基于 Effort CLIP ViT-L/14 模型的二分类鉴别平台。</p>
+          <p>支持批量拖拽、文件夹递归读取、平滑概率分布图及多主题适配。</p>
+          <p>版本：v1.0.0</p>
         </div>
       </section>
     </div>
-    <div class="col-right">
-      <!-- 结果 -->
-      <section class="panel panel-results">
-        <div class="panel-head">
-          <h2>鉴别结果</h2>
-          <div class="actions">
-            <button id="export-json" class="btn" disabled>导出 JSON</button>
-            <button id="clear-results" class="btn" disabled>清空</button>
-          </div>
-        </div>
 
-        <div class="table-wrap">
-          <!-- 表头：不参与滚动 -->
-          <div class="table-header">
-            <table>
-              <colgroup>
-                <col class="col-thumb">
-                <col>
-                <col class="col-verdict">
-                <col class="col-prob">
-                <col class="col-time">
-                <col class="col-state">
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>预览</th>
-                  <th>文件名</th>
-                  <th>结果</th>
-                  <th>伪造概率</th>
-                  <th>耗时</th>
-                  <th>状态</th>
-                </tr>
-              </thead>
-            </table>
-          </div>
-
-          <!-- 表体：在这个区域内滚动，滚动条自然只在表体出现 -->
-          <div class="table-body">
-            <table>
-              <colgroup>
-                <col class="col-thumb">
-                <col>
-                <col class="col-verdict">
-                <col class="col-prob">
-                <col class="col-time">
-                <col class="col-state">
-              </colgroup>
-              <tbody id="results-body"></tbody>
-            </table>
-            <p id="results-empty" class="empty">尚未添加图片。</p>
-          </div>
-        </div>
-      </section>
-    </div>
   </main>
-
   <footer class="page-footer wrap">
     ©2026
   </footer>

@@ -719,6 +719,7 @@ function bindEvents() {
 
 async function init() {
   initTheme();
+  initNavigation();
   bindEvents();
   renderStats(); // 这里已经包含了图表初始化，不需要额外再写 renderHistogram([])
 
@@ -774,5 +775,41 @@ function initTheme() {
     }
   });
 }
+
+/* ===== 页面视图切换 ===== */
+function initNavigation() {
+  const navButtons = document.querySelectorAll('.nav-btn');
+  const views = document.querySelectorAll('.view');
+
+  function switchView(targetId) {
+    // 1. 更新按钮状态
+    navButtons.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.target === targetId);
+    });
+
+    // 2. 更新视图状态
+    views.forEach(view => {
+      view.classList.toggle('active', view.id === `view-${targetId}`);
+    });
+  }
+
+  // 绑定点击事件
+  navButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.target;
+      switchView(target);
+      
+      // 如果用的是 hash 路由，可以更新 URL
+      history.replaceState(null, null, `#${target}`);
+    });
+  });
+
+  // 页面加载时，检查 URL Hash（支持刷新保持状态）
+  const hash = window.location.hash.replace('#', '');
+  if (hash && document.getElementById(`view-${hash}`)) {
+    switchView(hash);
+  }
+}
+
 
 init();

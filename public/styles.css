@@ -68,6 +68,15 @@ body, .panel, .topbar, .table-header, .stat, .btn, select, th, td {
   padding: 16px 0;
 }
 
+/* 让 TopBar 内部的 wrap 不受全局宽度限制，铺满全屏 */
+.topbar .wrap {
+  width: 100%;
+  max-width: 100%;
+  /* 保留左右边距，防止文字在极宽屏幕下直接贴死在屏幕边缘 */
+  padding-left: 24px; 
+  padding-right: 24px;
+}
+
 .brand h1 {
   margin: 0;
   font-size: 20px;
@@ -79,6 +88,79 @@ body, .panel, .topbar, .table-header, .stat, .btn, select, th, td {
   margin: 4px 0 0;
   font-size: 12px;
   color: var(--muted);
+}
+
+/* 新增：TopBar 左侧容器，让标题和导航水平排列 */
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 32px; /* 标题和导航之间的距离 */
+}
+
+/* ===== 导航按钮组 ===== */
+.nav-tabs {
+  display: flex;
+  background: var(--switcher-bg);
+  padding: 4px;
+  border-radius: 8px; /* 胶囊形状 */
+  gap: 4px;
+  position: relative;
+}
+
+.nav-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 14px 24px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-btn:hover {
+  color: var(--text);
+}
+
+.nav-btn.active {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* 深色模式下的导航按钮微调 */
+[data-theme="dark"] .nav-btn.active {
+  background: #334155; /* 稍微亮一点的灰色 */
+}
+
+/* ===== 视图切换基础逻辑 ===== */
+.view {
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.view.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 确保之前的 layout-grid 只在检测视图中生效 */
+#view-detect .layout-grid {
+  padding-top: 4px;
+  padding-bottom: 40px;
+}
+
+/* 解决因为加了导航导致的 TopBar 空间挤压 */
+@media (max-width: 768px) {
+  .nav-tabs {
+    display: none; /* 手机端空间小，可以考虑隐藏或改为底部导航 */
+  }
 }
 
 /* 主题切换器 */
@@ -134,7 +216,7 @@ body {
 }
 
 .wrap {
-  width: min(1360px, calc(100% - 40px));
+  width: min(1100px, calc(100% - 40px));
   margin: 0 auto;
 }
 
@@ -471,7 +553,7 @@ select:disabled {
   transform: translate(-50%, -30%); /* 居中并上移 */
   background: var(--text); /* 深色半透明背景 */
   backdrop-filter: blur(4px); /* 毛玻璃效果 */
-  color: #fff;
+  color: var(--bg);
   padding: 6px 14px;
   border-radius: 999px; /* 胶囊形 */
   font-size: 12px;
@@ -683,6 +765,13 @@ td {
   vertical-align: middle;
 }
 
+
+
+th:nth-child(3),
+td:nth-child(3) {
+  text-align: center;
+}
+
 /* 8. 底部边框清理，并处理空状态 */
 tbody tr:last-child td {
   border-bottom: none;
@@ -747,7 +836,7 @@ tbody tr:last-child td {
   .layout-grid {
     display: grid;
     align-items: stretch;
-    grid-template-columns: 7fr 3fr;
+    grid-template-columns: 4fr 6fr;
     gap: 24px;
     padding-top: 24px;
     padding-bottom: 40px;
@@ -799,13 +888,33 @@ tbody tr:last-child td {
   }
 
   /* 因为右侧列变窄，智能隐藏次要列，只留核心数据 */
-  .panel-results .col-time,
+  /* .panel-results .col-time,
   .panel-results .col-state,
   .panel-results th:nth-child(5),
   .panel-results th:nth-child(6),
   .panel-results td:nth-child(5),
   .panel-results td:nth-child(6) {
     display: none; 
+  } */
+
+  /* 👇 核心修复：左侧统计块改为 3 列，排成两行 */
+  .stats {
+    grid-template-columns: repeat(3, 1fr); 
+    gap: 8px; 
+  }
+
+  /* 稍微缩小统计块的内边距和字体，让它更精致 */
+  .stat {
+    padding: 10px 8px;
+  }
+  
+  .stat-label {
+    font-size: 11px; /* 稍微缩小标签字体 */
+  }
+  
+  .stat strong {
+    font-size: 18px; /* 稍微缩小数字字体 */
+    margin-top: 2px;
   }
 
   .panel-results .col-thumb { width: 50px; }
@@ -822,6 +931,7 @@ tbody tr:last-child td {
     flex-direction: column;
     align-items: stretch; /* 确保所有列在交叉轴上撑满 */
     gap: 16px;
+    max-width: 800px; 
     padding-top: 20px;
     padding-bottom: 40px;
   }
