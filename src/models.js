@@ -133,11 +133,18 @@ class ModelManager {
     const expFake = Math.exp(logits[1] - max);
     const fakeProbability = expFake / (expReal + expFake);
 
+    // 16x16 分类头投影响应图，前端用它叠加到原图上；旧版权重没有该输出，返回 null
+    const heatmap = outputs.heatmap
+      ? Array.from(outputs.heatmap.data, (value) => Math.round(value * 1e4) / 1e4)
+      : null;
+
     return {
       label: fakeProbability >= 0.5 ? 'fake' : 'real',
       fakeProbability,
       realProbability: 1 - fakeProbability,
       elapsedMs: Math.round(performance.now() - started),
+      heatmap,
+      heatmapSize: heatmap ? Math.round(Math.sqrt(heatmap.length)) : null,
     };
   }
 

@@ -32,7 +32,7 @@ ATTN_PROJ = ("k_proj", "v_proj", "q_proj", "out_proj")
 
 
 class EffortModel(torch.nn.Module):
-    """视觉编码器 + 二分类头，输出 [1, 2] logits。"""
+    """视觉编码器 + 二分类头，输出 logits 与 16x16 分类头热力图。"""
 
     def __init__(self):
         super().__init__()
@@ -40,8 +40,15 @@ class EffortModel(torch.nn.Module):
         self.head = torch.nn.Linear(1024, 2)
 
     def forward(self, pixel_values):
-        pooled = self.vision_model(pixel_values=pixel_values).pooler_output
-        return self.head(pooled)
+        outputs = self.vision_model(pixel_values=pixel_values, output_hidden_states=True)
+        logits = self.head(outputs.pooler_output)
+
+        # 图像块特征先做 post_layernorm（与 CLS 的池化后空间一致），
+        # 再投影到「伪造 - 真实」分类权重方向上，得到每个图像块的类别支持度
+        tokens = self.vision_model.vision_model.post_layernorm(outputs.hidden_states[-1])
+        direction = self.head.weight[1] - self.head.weight[0]
+        heatmap = (tokens[:, 1:, :] * direction).sum(dim=-1).reshape(tokens.shape[0], 16, 16)
+        return logits, heatmap
 
 
 def fold_checkpoint(state: dict) -> dict:
@@ -50,9 +57,10 @@ def fold_checkpoint(state: dict) -> dict:
     for raw_key, value in state.items():
         key = raw_key.replace("module.", "", 1)
 
-        # backbone.xxx -> vision_model.xxx
+        # backbone.xxx -> vision_model.vision_model.xxx
+        # CLIPVisionModel 是外层封装，真正的编码器在 .vision_model 下
         if key.startswith("backbone."):
-            key = "vision_model." + key[len("backbone."):]
+            key = "vision_model.vision_model." + key[len("backbone."):]
 
         # self_attn 的 weight_main 与残差相加，拼出完整权重
         if key.endswith(".weight_main"):
@@ -91,7 +99,7 @@ def export(weights: Path, output: Path) -> None:
         dummy,
         str(output),
         input_names=["pixel_values"],
-        output_names=["logits"],
+        output_names=["logits", "heatmap"],
         opset_version=17,
         do_constant_folding=True,
         dynamo=False,

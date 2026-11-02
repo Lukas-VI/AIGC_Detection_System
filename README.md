@@ -44,13 +44,13 @@ Node.js 通过 ONNX Runtime 推理，因此需要把 `.pth` 转换为 `.onnx`，
 ```bash
 # 一次性安装转换依赖（Python 3.10+）
 python -m venv tools/.venv
-tools\.venv\Scripts\python.exe -m pip install torch transformers onnx
+tools\.venv\Scripts\python.exe -m pip install torch "transformers==4.57.1" onnx
 
 # 逐个转换（文件名与 .pth 保持一致）
 tools\.venv\Scripts\python.exe tools\export_onnx.py --weights weight\effort_clip_L14_trainOn_chameleon.pth --output weight\onnx\effort_clip_L14_trainOn_chameleon.onnx
 ```
 
-脚本会把 Effort 的 SVD 残差分量折叠回普通线性层，导出的模型与原始检测器数值等价（已验证误差 < 1e-6）。
+脚本会把 Effort 的 SVD 残差分量折叠回普通线性层，导出的模型与原始检测器数值等价（已验证误差 < 1e-6），同时输出 `logits` 与 16×16 的分类头热力图 `heatmap`。
 
 未转换的模型会在页面中标记为“未转换”，无法加载。
 

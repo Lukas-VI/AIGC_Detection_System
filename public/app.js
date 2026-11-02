@@ -35,6 +35,26 @@ const el = {
   clearBtn: document.getElementById('clear-results'),
   resultsBody: document.getElementById('results-body'),
   resultsEmpty: document.getElementById('results-empty'),
+
+  resultsBodyFull: document.getElementById('results-body-full'),
+  resultsEmptyFull: document.getElementById('results-empty-full'),
+
+  detailOverlay: document.getElementById('detail-overlay'),
+  detailDrawer: document.getElementById('detail-drawer'),
+  detailClose: document.getElementById('detail-close'),
+  detailName: document.getElementById('detail-name'),
+  detailVerdict: document.getElementById('detail-verdict'),
+  detailConfidence: document.getElementById('detail-confidence'),
+  detailFakeProbCard: document.getElementById('detail-fake-prob-card'),
+  detailBarFake: document.getElementById('detail-bar-fake'),
+  detailBarReal: document.getElementById('detail-bar-real'),
+  detailFakeProb: document.getElementById('detail-fake-prob'),
+  detailRealProb: document.getElementById('detail-real-prob'),
+  detailElapsed: document.getElementById('detail-elapsed'),
+  detailCanvas: document.getElementById('detail-canvas'),
+  detailHeatmapEmpty: document.getElementById('detail-heatmap-empty'),
+  detailModel: document.getElementById('detail-model'),
+  detailModelId: document.getElementById('detail-model-id'),
 };
 
 const state = {
@@ -251,26 +271,24 @@ function addFiles(fileList, useRelativePath) {
   }
 }
 
-function renderRow(item) {
-  let row = rows.get(item.key);
+function createRowElement(item) {
+  const row = document.createElement('tr');
+  row.dataset.key = item.key;
+  row.innerHTML = `
+    <td><img class="thumb" alt=""></td>
+    <td class="filename"></td>
+    <td class="verdict"></td>
+    <td class="prob mono"></td>
+    <td class="time mono"></td>
+    <td class="state"></td>`;
+  row.querySelector('.thumb').src = item.preview;
+  const nameCell = row.querySelector('.filename');
+  nameCell.textContent = item.key;
+  nameCell.title = item.key;
+  return row;
+}
 
-  if (!row) {
-    row = document.createElement('tr');
-    row.innerHTML = `
-      <td><img class="thumb" alt=""></td>
-      <td class="filename"></td>
-      <td class="verdict"></td>
-      <td class="prob mono"></td>
-      <td class="time mono"></td>
-      <td class="state"></td>`;
-    row.querySelector('.thumb').src = item.preview;
-    const nameCell = row.querySelector('.filename');
-    nameCell.textContent = item.key;
-    nameCell.title = item.key;
-    rows.set(item.key, row);
-    el.resultsBody.appendChild(row);
-  }
-
+function updateRowElement(row, item) {
   const verdict = row.querySelector('.verdict');
   const prob = row.querySelector('.prob');
   const time = row.querySelector('.time');
@@ -279,6 +297,17 @@ function renderRow(item) {
   statusCell.title = '';
   statusCell.className = 'state';
 
+  // 只有检测完成的条目才有详情可看
+  const clickable = item.status === 'done';
+  row.classList.toggle('row-clickable', clickable);
+  if (clickable) {
+    row.tabIndex = 0;
+    row.setAttribute('aria-label', `查看 ${item.key} 的检测详情`);
+  } else {
+    row.removeAttribute('tabindex');
+    row.removeAttribute('aria-label');
+  }
+
   if (item.status === 'done') {
     const isFake = item.result.label === 'fake';
     verdict.innerHTML = `<span class="tag tag-${isFake ? 'fake' : 'real'}">${isFake ? '伪造' : '真实'}</span>`;
@@ -286,25 +315,48 @@ function renderRow(item) {
     time.textContent = `${item.result.elapsedMs} ms`;
     statusCell.textContent = '完成';
   } else if (item.status === 'processing') {
-    verdict.textContent = '—';
-    prob.textContent = '—';
-    time.textContent = '—';
+    verdict.textContent = '—'; prob.textContent = '—'; time.textContent = '—';
     statusCell.textContent = '检测中…';
   } else if (item.status === 'error') {
-    verdict.textContent = '—';
-    prob.textContent = '—';
-    time.textContent = '—';
+    verdict.textContent = '—'; prob.textContent = '—'; time.textContent = '—';
     statusCell.textContent = '失败';
     statusCell.className = 'state state-error';
     statusCell.title = item.error ?? '未知错误';
   } else {
-    verdict.textContent = '—';
-    prob.textContent = '—';
-    time.textContent = '—';
+    verdict.textContent = '—'; prob.textContent = '—'; time.textContent = '—';
     statusCell.textContent = '等待';
   }
+}
 
-  el.resultsEmpty.hidden = state.files.length > 0;
+// 👇 核心：重写渲染函数，同时更新两个表格
+function renderRow(item) {
+  let rowData = rows.get(item.key);
+  if (!rowData) {
+    rowData = { main: null, full: null };
+    rows.set(item.key, rowData);
+  }
+
+  // 1. 渲染主页面（小表格）
+  if (el.resultsBody) {
+    if (!rowData.main) {
+      rowData.main = createRowElement(item);
+      el.resultsBody.appendChild(rowData.main);
+    }
+    updateRowElement(rowData.main, item);
+  }
+
+  // 2. 渲染结果页（大表格）
+  if (el.resultsBodyFull) {
+    if (!rowData.full) {
+      rowData.full = createRowElement(item);
+      el.resultsBodyFull.appendChild(rowData.full);
+    }
+    updateRowElement(rowData.full, item);
+  }
+
+  // 更新空状态提示
+  if (el.resultsEmpty) el.resultsEmpty.hidden = state.files.length > 0;
+  if (el.resultsEmptyFull) el.resultsEmptyFull.hidden = state.files.length > 0;
 }
 
 function updateQueueSummary() {
@@ -674,16 +726,180 @@ function exportJson() {
 }
 
 function clearResults() {
+  if (el.detailDrawer.classList.contains('open')) closeDetail();
+
   for (const item of state.files) {
     URL.revokeObjectURL(item.preview);
   }
   state.files = [];
   rows.clear();
-  el.resultsBody.innerHTML = '';
-  el.resultsEmpty.hidden = false;
+  
+  // 清空主表格
+  if (el.resultsBody) el.resultsBody.innerHTML = '';
+  if (el.resultsEmpty) el.resultsEmpty.hidden = false;
+  
+  // 清空全量表格
+  if (el.resultsBodyFull) el.resultsBodyFull.innerHTML = '';
+  if (el.resultsEmptyFull) el.resultsEmptyFull.hidden = false;
+
   el.uploadHint.textContent = '';
   renderStats();
   updateQueueSummary();
+}
+
+/* ===== 详情侧边栏 ===== */
+
+// 蓝 → 青 → 绿 → 黄 → 红，数值越高越支持「伪造」方向
+const HEAT_STOPS = [
+  [0.0, 37, 52, 148],
+  [0.25, 65, 182, 196],
+  [0.5, 127, 205, 120],
+  [0.75, 253, 219, 109],
+  [1.0, 215, 48, 39],
+];
+
+function heatColor(value) {
+  const t = Math.max(0, Math.min(1, value));
+  for (let i = 1; i < HEAT_STOPS.length; i += 1) {
+    const [p1, r1, g1, b1] = HEAT_STOPS[i];
+    if (t <= p1) {
+      const [p0, r0, g0, b0] = HEAT_STOPS[i - 1];
+      const k = (t - p0) / (p1 - p0 || 1);
+      return [
+        Math.round(r0 + (r1 - r0) * k),
+        Math.round(g0 + (g1 - g0) * k),
+        Math.round(b0 + (b1 - b0) * k),
+      ];
+    }
+  }
+  const [, r, g, b] = HEAT_STOPS[HEAT_STOPS.length - 1];
+  return [r, g, b];
+}
+
+function drawHeatmap(item, result) {
+  const canvas = el.detailCanvas;
+  const ctx = canvas.getContext('2d');
+  const size = canvas.width;
+  const heatmap = result.heatmap;
+  const grid = result.heatmapSize;
+
+  ctx.clearRect(0, 0, size, size);
+  el.detailHeatmapEmpty.hidden = true;
+
+  const image = new Image();
+  image.onload = () => {
+    // 与后端预处理保持一致：原图直接拉伸到 224×224，热力图网格才能和画面精确对齐
+    ctx.drawImage(image, 0, 0, size, size);
+
+    if (!Array.isArray(heatmap) || !grid || heatmap.length !== grid * grid) {
+      el.detailHeatmapEmpty.hidden = false;
+      return;
+    }
+
+    // 用 5%~95% 分位数做归一化，避免个别极值把整张图压成单色
+    const sorted = [...heatmap].sort((a, b) => a - b);
+    const lo = sorted[Math.floor(sorted.length * 0.05)];
+    const hi = sorted[Math.floor(sorted.length * 0.95)];
+    let span = hi - lo;
+    if (span <= 0) {
+      span = Math.max(...heatmap) - Math.min(...heatmap) || 1;
+      if (span <= 0) span = 1;
+    }
+
+    // 先把 16×16 的响应写成小图，再放大绘制，得到平滑过渡的热力图
+    const cellCanvas = document.createElement('canvas');
+    cellCanvas.width = grid;
+    cellCanvas.height = grid;
+    const cellCtx = cellCanvas.getContext('2d');
+    const pixels = cellCtx.createImageData(grid, grid);
+
+    for (let i = 0; i < heatmap.length; i += 1) {
+      const t = Math.max(0, Math.min(1, (heatmap[i] - lo) / span));
+      const [r, g, b] = heatColor(t);
+      const offset = i * 4;
+      pixels.data[offset] = r;
+      pixels.data[offset + 1] = g;
+      pixels.data[offset + 2] = b;
+      pixels.data[offset + 3] = Math.round(t * 220);
+    }
+    cellCtx.putImageData(pixels, 0, 0);
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(cellCanvas, 0, 0, size, size);
+    ctx.restore();
+  };
+  image.src = item.preview;
+}
+
+function openDetail(key) {
+  const item = state.files.find((file) => file.key === key);
+  if (!item || item.status !== 'done' || !item.result) return;
+
+  const { result } = item;
+  const isFake = result.label === 'fake';
+  const confidence = isFake ? result.fakeProbability : result.realProbability;
+
+  el.detailName.textContent = item.key;
+  el.detailName.title = item.key;
+
+  el.detailVerdict.textContent = isFake ? '伪造' : '真实';
+  el.detailVerdict.className = `tag tag-${isFake ? 'fake' : 'real'}`;
+  el.detailConfidence.textContent = formatPercent(confidence);
+
+  el.detailBarFake.style.width = `${(result.fakeProbability * 100).toFixed(2)}%`;
+  el.detailBarReal.style.width = `${(result.realProbability * 100).toFixed(2)}%`;
+  el.detailFakeProb.textContent = formatPercent(result.fakeProbability);
+  el.detailRealProb.textContent = formatPercent(result.realProbability);
+
+  el.detailElapsed.textContent = `${result.elapsedMs} ms`;
+  el.detailFakeProbCard.textContent = formatPercent(result.fakeProbability);
+
+  const modelId = result.model ?? '';
+  const model = state.models.find((entry) => entry.id === modelId);
+  el.detailModel.textContent = model?.displayName ?? (modelId || '未知模型');
+  el.detailModelId.textContent = modelId ? `模型标识 · ${modelId}` : '';
+
+  drawHeatmap(item, result);
+
+  el.detailDrawer.classList.add('open');
+  el.detailDrawer.setAttribute('aria-hidden', 'false');
+  el.detailOverlay.hidden = false;
+  // 先取消 hidden 再加 class，保证滑入动画生效
+  requestAnimationFrame(() => el.detailOverlay.classList.add('open'));
+  document.body.classList.add('drawer-open');
+}
+
+function closeDetail() {
+  el.detailDrawer.classList.remove('open');
+  el.detailDrawer.setAttribute('aria-hidden', 'true');
+  el.detailOverlay.classList.remove('open');
+  document.body.classList.remove('drawer-open');
+
+  setTimeout(() => {
+    if (!el.detailDrawer.classList.contains('open')) {
+      el.detailOverlay.hidden = true;
+    }
+  }, 260);
+}
+
+function bindRowEvents(body) {
+  if (!body) return;
+
+  body.addEventListener('click', (event) => {
+    const row = event.target.closest('tr[data-key]');
+    if (row) openDetail(row.dataset.key);
+  });
+
+  // 键盘操作：聚焦到行后回车/空格同样可以打开详情
+  body.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const row = event.target.closest('tr[data-key]');
+    if (!row) return;
+    event.preventDefault();
+    openDetail(row.dataset.key);
+  });
 }
 
 function bindEvents() {
@@ -715,6 +931,23 @@ function bindEvents() {
 
   el.exportBtn.addEventListener('click', exportJson);
   el.clearBtn.addEventListener('click', clearResults);
+
+  bindRowEvents(el.resultsBody);
+  bindRowEvents(el.resultsBodyFull);
+
+  el.detailClose.addEventListener('click', closeDetail);
+  el.detailOverlay.addEventListener('click', closeDetail);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && el.detailDrawer.classList.contains('open')) {
+      closeDetail();
+    }
+  });
+
+  const exportBtnFull = document.getElementById('export-json-full');
+  const clearBtnFull = document.getElementById('clear-results-full');
+  
+  if (exportBtnFull) exportBtnFull.addEventListener('click', exportJson);
+  if (clearBtnFull) clearBtnFull.addEventListener('click', clearResults);
 }
 
 async function init() {
