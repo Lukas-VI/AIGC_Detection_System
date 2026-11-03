@@ -11,6 +11,7 @@ const el = {
   modelBadge: document.getElementById('model-badge'),
   modelStatus: document.getElementById('model-status'),
   loadBtn: document.getElementById('load-model'),
+  unloadBtn: document.getElementById('unload-model'),
   progress: document.getElementById('load-progress'),
   progressBar: document.getElementById('load-progress-bar'),
 
@@ -33,28 +34,19 @@ const el = {
 
   exportBtn: document.getElementById('export-json'),
   clearBtn: document.getElementById('clear-results'),
+  inferBtn: document.getElementById('infer-results'),
   resultsBody: document.getElementById('results-body'),
   resultsEmpty: document.getElementById('results-empty'),
 
   resultsBodyFull: document.getElementById('results-body-full'),
   resultsEmptyFull: document.getElementById('results-empty-full'),
+  inferBtnFull: document.getElementById('infer-results-full'),
 
   detailOverlay: document.getElementById('detail-overlay'),
   detailDrawer: document.getElementById('detail-drawer'),
   detailClose: document.getElementById('detail-close'),
   detailName: document.getElementById('detail-name'),
-  detailVerdict: document.getElementById('detail-verdict'),
-  detailConfidence: document.getElementById('detail-confidence'),
-  detailFakeProbCard: document.getElementById('detail-fake-prob-card'),
-  detailBarFake: document.getElementById('detail-bar-fake'),
-  detailBarReal: document.getElementById('detail-bar-real'),
-  detailFakeProb: document.getElementById('detail-fake-prob'),
-  detailRealProb: document.getElementById('detail-real-prob'),
-  detailElapsed: document.getElementById('detail-elapsed'),
-  detailCanvas: document.getElementById('detail-canvas'),
-  detailHeatmapEmpty: document.getElementById('detail-heatmap-empty'),
-  detailModel: document.getElementById('detail-model'),
-  detailModelId: document.getElementById('detail-model-id'),
+  detailColumns: document.getElementById('detail-columns'),
 };
 
 const state = {
@@ -62,8 +54,11 @@ const state = {
   activeId: null,
   loading: false,
   detecting: false,
+  inferringSelected: false,
   files: [],
   pollTimer: null,
+  /** 勾选的图片 key，用于切换模型后再次推理 */
+  selected: new Set(),
 };
 
 /** 每个文件对应一行 DOM，避免批量检测时反复重建表格 */
@@ -88,18 +83,28 @@ function formatPercent(value) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function modelDisplayName(modelId) {
+  const model = state.models.find((entry) => entry.id === modelId);
+  return model?.displayName ?? (modelId || '未知模型');
+}
+
+function formatClock(timestamp) {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleTimeString('zh-CN', { hour12: false });
+}
+
 function selectedModel() {
   return state.models.find((model) => model.id === el.modelSelect.value) ?? null;
 }
 
-function currentModel() {
-  const loading = state.models.find((model) => model.status === 'loading');
-  if (loading) return loading;
+/** 本次推理应使用的模型：下拉框选中的模型必须已经加载 */
+function inferenceModelId() {
+  const model = selectedModel();
+  return model && model.status === 'ready' ? model.id : null;
+}
 
-  const selected = selectedModel();
-  if (selected && selected.id !== state.activeId) return selected;
-
-  return state.models.find((model) => model.id === state.activeId) ?? selected;
+function loadedModelCount() {
+  return state.models.filter((model) => model.status === 'ready').length;
 }
 
 function renderModelSelect() {
@@ -127,7 +132,7 @@ function renderModelSelect() {
 }
 
 function renderModelStatus() {
-  const model = currentModel();
+  const model = selectedModel();
   const status = model?.status ?? 'idle';
 
   el.modelBadge.textContent = MODEL_STATUS_TEXT[status] ?? status;
@@ -153,19 +158,24 @@ function renderModelStatus() {
       ? `正在读取权重 ${Math.round((model.progress / 0.8) * 100)}%`
       : '正在初始化推理引擎，请稍候…';
   } else if (status === 'ready') {
-    el.modelStatus.textContent = `模型已就绪 · 加载耗时 ${(model.loadMs / 1000).toFixed(1)} s · ${formatBytes(model.onnxSize)}`;
+    const count = loadedModelCount();
+    el.modelStatus.textContent = `模型已就绪 · 加载耗时 ${(model.loadMs / 1000).toFixed(1)} s · ${formatBytes(model.onnxSize)}`
+      + (count > 1 ? ` · 已同时加载 ${count} 个模型` : '');
   } else if (status === 'error') {
     el.modelStatus.textContent = `加载失败：${model.error}`;
   } else if (!model.onnxAvailable) {
     el.modelStatus.textContent = '该权重尚未转换为 ONNX，请先运行 tools/export_onnx.py。';
   } else {
-    el.modelStatus.textContent = `权重 ${formatBytes(model.pthSize)}，点击“加载模型”开始。`;
+    el.modelStatus.textContent = `权重 ${formatBytes(model.pthSize)}，点击“加载模型”开始（可同时加载多个模型）。`;
   }
 
-  const alreadyLoaded = status === 'ready' && model.id === state.activeId;
+  const alreadyLoaded = status === 'ready';
   el.loadBtn.textContent = alreadyLoaded ? '已加载' : '加载模型';
   el.loadBtn.disabled = state.loading || state.detecting || !model?.onnxAvailable || status === 'loading' || alreadyLoaded;
+  el.unloadBtn.disabled = state.loading || state.detecting || status !== 'ready';
   el.modelSelect.disabled = state.loading || state.detecting;
+
+  updateActionButtons();
 }
 
 async function refreshModels() {
@@ -187,7 +197,7 @@ function startPolling() {
         stopPolling();
         state.loading = false;
         renderModelStatus();
-        if (state.activeId) startDetection();
+        if (inferenceModelId()) startDetection();
       }
     } catch (error) {
       stopPolling();
@@ -222,6 +232,27 @@ async function handleLoad() {
   }
 }
 
+/** 手动卸载当前选中的模型，释放其会话 */
+async function handleUnload() {
+  const id = el.modelSelect.value;
+  const model = selectedModel();
+  if (!id || state.loading || state.detecting || !model || model.status !== 'ready') return;
+
+  state.loading = true;
+  renderModelStatus();
+
+  try {
+    await api(`/api/models/${encodeURIComponent(id)}/unload`, { method: 'POST' });
+    await refreshModels();
+  } catch (error) {
+    el.modelStatus.textContent = `卸载失败：${error.message}`;
+  } finally {
+    state.loading = false;
+    renderModelStatus();
+    renderStats();
+  }
+}
+
 function uniqueKey(rawKey) {
   const used = new Set(state.files.map((item) => item.key));
   if (!used.has(rawKey)) return rawKey;
@@ -252,8 +283,13 @@ function addFiles(fileList, useRelativePath) {
       key: uniqueKey(rawKey),
       file,
       status: 'queued',
+      /** 最近一次结果（兼容统计、导出等单结果逻辑） */
       result: null,
+      /** 该图片的全部推理结果，用于同组多行对比 */
+      results: [],
       error: null,
+      expanded: false,
+      inferring: false,
       preview: URL.createObjectURL(file),
     };
     state.files.push(item);
@@ -264,27 +300,57 @@ function addFiles(fileList, useRelativePath) {
   updateQueueSummary();
   el.uploadHint.textContent = '';
 
-  if (state.activeId && !state.detecting) {
+  if (inferenceModelId() && !state.detecting) {
     startDetection();
-  } else if (!state.activeId) {
-    el.uploadHint.textContent = '图片已加入队列，加载检测模型后将自动开始。';
+  } else if (!inferenceModelId()) {
+    el.uploadHint.textContent = '图片已加入队列，加载所选模型后将自动开始。';
   }
 }
 
 function createRowElement(item) {
   const row = document.createElement('tr');
   row.dataset.key = item.key;
+  row.className = 'group-head';
   row.innerHTML = `
-    <td><img class="thumb" alt=""></td>
-    <td class="filename"></td>
+    <td class="cell-select"><input type="checkbox" class="row-select" aria-label="勾选该图片"></td>
+    <td class="cell-thumb"><img class="thumb" alt=""></td>
+    <td class="cell-name">
+      <span class="file-name"></span>
+      <span class="group-meta"></span>
+    </td>
     <td class="verdict"></td>
     <td class="prob mono"></td>
     <td class="time mono"></td>
     <td class="state"></td>`;
   row.querySelector('.thumb').src = item.preview;
-  const nameCell = row.querySelector('.filename');
+  const nameCell = row.querySelector('.file-name');
   nameCell.textContent = item.key;
   nameCell.title = item.key;
+  return row;
+}
+
+function createResultRow(item, result, index) {
+  const row = document.createElement('tr');
+  row.dataset.key = item.key;
+  row.dataset.index = String(index);
+  row.className = 'result-row row-clickable';
+
+  const isFake = result.label === 'fake';
+  row.innerHTML = `
+    <td class="cell-select"></td>
+    <td class="cell-thumb"></td>
+    <td class="cell-name"><span class="result-model"></span></td>
+    <td class="verdict"><span class="tag tag-${isFake ? 'fake' : 'real'}">${isFake ? '伪造' : '真实'}</span></td>
+    <td class="prob mono">${formatPercent(result.fakeProbability)}</td>
+    <td class="time mono">${result.elapsedMs} ms</td>
+    <td class="state"><span class="result-index">#${index + 1}</span></td>`;
+
+  const modelCell = row.querySelector('.result-model');
+  modelCell.textContent = modelDisplayName(result.model);
+  modelCell.title = result.model ?? '';
+
+  row.tabIndex = 0;
+  row.setAttribute('aria-label', `查看 ${item.key} 第 ${index + 1} 条检测结果`);
   return row;
 }
 
@@ -293,12 +359,21 @@ function updateRowElement(row, item) {
   const prob = row.querySelector('.prob');
   const time = row.querySelector('.time');
   const statusCell = row.querySelector('.state');
+  const meta = row.querySelector('.group-meta');
+  const checkbox = row.querySelector('.row-select');
+
+  const count = item.results.length;
+  const latest = count > 0 ? item.results[count - 1] : null;
+
+  if (checkbox) checkbox.checked = state.selected.has(item.key);
+  row.classList.toggle('row-selected', state.selected.has(item.key));
 
   statusCell.title = '';
   statusCell.className = 'state';
+  statusCell.replaceChildren();
 
-  // 只有检测完成的条目才有详情可看
-  const clickable = item.status === 'done';
+  // 有任意一条结果即可查看详情
+  const clickable = count > 0;
   row.classList.toggle('row-clickable', clickable);
   if (clickable) {
     row.tabIndex = 0;
@@ -308,24 +383,73 @@ function updateRowElement(row, item) {
     row.removeAttribute('aria-label');
   }
 
-  if (item.status === 'done') {
-    const isFake = item.result.label === 'fake';
+  if (item.inferring) {
+    meta.hidden = false;
+    meta.textContent = '推理中…';
+  } else if (latest) {
+    const modelName = modelDisplayName(latest.model);
+    meta.hidden = false;
+    meta.textContent = count > 1 ? `${count} 个结果 · 最新 ${modelName}` : modelName;
+  } else {
+    meta.hidden = true;
+    meta.textContent = '';
+  }
+
+  if (latest) {
+    const isFake = latest.label === 'fake';
     verdict.innerHTML = `<span class="tag tag-${isFake ? 'fake' : 'real'}">${isFake ? '伪造' : '真实'}</span>`;
-    prob.textContent = formatPercent(item.result.fakeProbability);
-    time.textContent = `${item.result.elapsedMs} ms`;
-    statusCell.textContent = '完成';
-  } else if (item.status === 'processing') {
-    verdict.textContent = '—'; prob.textContent = '—'; time.textContent = '—';
-    statusCell.textContent = '检测中…';
-  } else if (item.status === 'error') {
-    verdict.textContent = '—'; prob.textContent = '—'; time.textContent = '—';
+    prob.textContent = formatPercent(latest.fakeProbability);
+    time.textContent = `${latest.elapsedMs} ms`;
+  } else {
+    verdict.textContent = '—';
+    prob.textContent = '—';
+    time.textContent = '—';
+  }
+
+  if (count > 1) {
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'group-toggle';
+    toggle.textContent = item.expanded ? '收起' : `展开 ${count}`;
+    toggle.title = item.expanded ? '收起该图片的结果' : '展开该图片的全部结果';
+    statusCell.appendChild(toggle);
+  } else if (item.inferring || item.status === 'processing') {
+    statusCell.textContent = '推理中…';
+  } else if (item.status === 'error' && count === 0) {
     statusCell.textContent = '失败';
     statusCell.className = 'state state-error';
     statusCell.title = item.error ?? '未知错误';
-  } else {
-    verdict.textContent = '—'; prob.textContent = '—'; time.textContent = '—';
+  } else if (count > 0) {
+    statusCell.textContent = '完成';
+  } else if (item.status === 'queued') {
     statusCell.textContent = '等待';
   }
+}
+
+/** 一条结果一行，仅在多结果且展开时渲染子行 */
+function renderChildRows(slot, item) {
+  for (const row of slot.children) row.remove();
+  slot.children.length = 0;
+
+  if (!item.expanded || item.results.length < 2) return;
+
+  let anchor = slot.header;
+  item.results.forEach((result, index) => {
+    const row = createResultRow(item, result, index);
+    anchor.insertAdjacentElement('afterend', row);
+    anchor = row;
+    slot.children.push(row);
+  });
+}
+
+function renderTableSlot(body, slot, item) {
+  if (!slot) {
+    slot = { header: createRowElement(item), children: [] };
+    body.appendChild(slot.header);
+  }
+  updateRowElement(slot.header, item);
+  renderChildRows(slot, item);
+  return slot;
 }
 
 // 👇 核心：重写渲染函数，同时更新两个表格
@@ -338,25 +462,30 @@ function renderRow(item) {
 
   // 1. 渲染主页面（小表格）
   if (el.resultsBody) {
-    if (!rowData.main) {
-      rowData.main = createRowElement(item);
-      el.resultsBody.appendChild(rowData.main);
-    }
-    updateRowElement(rowData.main, item);
+    rowData.main = renderTableSlot(el.resultsBody, rowData.main, item);
   }
 
   // 2. 渲染结果页（大表格）
   if (el.resultsBodyFull) {
-    if (!rowData.full) {
-      rowData.full = createRowElement(item);
-      el.resultsBodyFull.appendChild(rowData.full);
-    }
-    updateRowElement(rowData.full, item);
+    rowData.full = renderTableSlot(el.resultsBodyFull, rowData.full, item);
   }
 
   // 更新空状态提示
   if (el.resultsEmpty) el.resultsEmpty.hidden = state.files.length > 0;
   if (el.resultsEmptyFull) el.resultsEmptyFull.hidden = state.files.length > 0;
+}
+
+/** 同步两张表里同一图片的勾选状态 */
+function applySelectionState(key) {
+  const rowData = rows.get(key);
+  if (!rowData) return;
+
+  for (const slot of [rowData.main, rowData.full]) {
+    if (!slot) continue;
+    const checkbox = slot.header.querySelector('.row-select');
+    if (checkbox) checkbox.checked = state.selected.has(key);
+    slot.header.classList.toggle('row-selected', state.selected.has(key));
+  }
 }
 
 function updateQueueSummary() {
@@ -379,8 +508,8 @@ function updateUploadHint() {
   }
 
   const pending = state.files.some((item) => item.status === 'queued' || item.status === 'processing');
-  if (!state.activeId && pending) {
-    el.uploadHint.textContent = '图片已加入队列，加载检测模型后将自动开始。';
+  if (!inferenceModelId() && pending) {
+    el.uploadHint.textContent = '图片已加入队列，加载所选模型后将自动开始。';
   } else if (state.detecting) {
     el.uploadHint.textContent = '正在逐张检测，请保持页面打开。';
   } else {
@@ -389,7 +518,8 @@ function updateUploadHint() {
 }
 
 async function startDetection() {
-  if (state.detecting || !state.activeId) return;
+  const modelId = inferenceModelId();
+  if (state.detecting || !modelId) return;
 
   state.detecting = true;
   renderModelStatus();
@@ -398,8 +528,6 @@ async function startDetection() {
   try {
     let item;
     while ((item = state.files.find((file) => file.status === 'queued'))) {
-      if (!state.activeId) break;
-
       item.status = 'processing';
       renderRow(item);
       renderStats();
@@ -409,8 +537,11 @@ async function startDetection() {
         const form = new FormData();
         form.append('image', item.file, item.key);
         form.append('name', item.key);
+        form.append('model', modelId);
 
-        item.result = await api('/api/detect', { method: 'POST', body: form });
+        const result = await api('/api/detect', { method: 'POST', body: form });
+        item.results.push({ ...result, receivedAt: Date.now() });
+        item.result = item.results[item.results.length - 1];
         item.status = 'done';
         item.error = null;
       } catch (error) {
@@ -427,6 +558,73 @@ async function startDetection() {
     renderModelStatus();
     renderStats();
     updateUploadHint();
+  }
+}
+
+/** 对勾选的图片用当前选中的模型再次推理，为每张图追加一条结果 */
+async function runSelectedInference() {
+  const modelId = inferenceModelId();
+  if (state.detecting || state.loading || !modelId) return;
+
+  const targets = state.files.filter((item) => state.selected.has(item.key));
+  if (targets.length === 0) return;
+
+  state.detecting = true;
+  state.inferringSelected = true;
+  renderModelStatus();
+  updateActionButtons();
+  updateUploadHint();
+
+  try {
+    for (const item of targets) {
+      item.inferring = true;
+      renderRow(item);
+
+      try {
+        const form = new FormData();
+        form.append('image', item.file, item.key);
+        form.append('name', item.key);
+        form.append('model', modelId);
+
+        const result = await api('/api/detect', { method: 'POST', body: form });
+        item.results.push({ ...result, receivedAt: Date.now() });
+        item.result = item.results[item.results.length - 1];
+        item.status = 'done';
+        item.error = null;
+        item.expanded = item.results.length > 1;
+      } catch (error) {
+        // 已有历史结果时保留，避免一次失败清掉之前的对比数据
+        if (item.results.length === 0) {
+          item.status = 'error';
+          item.error = error.message;
+        }
+      } finally {
+        item.inferring = false;
+      }
+
+      renderRow(item);
+      renderStats();
+      updateQueueSummary();
+    }
+  } finally {
+    state.detecting = false;
+    state.inferringSelected = false;
+    renderModelStatus();
+    renderStats();
+    updateUploadHint();
+    updateActionButtons();
+  }
+}
+
+/** 根据勾选状态与模型状态刷新「推理」按钮 */
+function updateActionButtons() {
+  const hasSelection = state.selected.size > 0;
+  const busy = state.detecting || state.loading;
+  const modelReady = Boolean(inferenceModelId());
+  for (const button of [el.inferBtn, el.inferBtnFull]) {
+    if (!button) continue;
+    button.disabled = !hasSelection || !modelReady || busy;
+    button.textContent = state.inferringSelected ? '推理中…' : '推理';
   }
 }
 
@@ -456,6 +654,7 @@ function renderStats() {
   el.exportBtn.disabled = done.length === 0;
   el.clearBtn.disabled = state.files.length === 0 || state.detecting;
 
+  updateActionButtons();
   renderHistogram(done);
 }
 
@@ -732,6 +931,7 @@ function clearResults() {
     URL.revokeObjectURL(item.preview);
   }
   state.files = [];
+  state.selected.clear();
   rows.clear();
   
   // 清空主表格
@@ -776,15 +976,14 @@ function heatColor(value) {
   return [r, g, b];
 }
 
-function drawHeatmap(item, result) {
-  const canvas = el.detailCanvas;
+function drawHeatmap(canvas, emptyEl, item, result) {
   const ctx = canvas.getContext('2d');
   const size = canvas.width;
   const heatmap = result.heatmap;
   const grid = result.heatmapSize;
 
   ctx.clearRect(0, 0, size, size);
-  el.detailHeatmapEmpty.hidden = true;
+  if (emptyEl) emptyEl.hidden = true;
 
   const image = new Image();
   image.onload = () => {
@@ -792,7 +991,7 @@ function drawHeatmap(item, result) {
     ctx.drawImage(image, 0, 0, size, size);
 
     if (!Array.isArray(heatmap) || !grid || heatmap.length !== grid * grid) {
-      el.detailHeatmapEmpty.hidden = false;
+      if (emptyEl) emptyEl.hidden = false;
       return;
     }
 
@@ -833,41 +1032,126 @@ function drawHeatmap(item, result) {
   image.src = item.preview;
 }
 
-function openDetail(key) {
-  const item = state.files.find((file) => file.key === key);
-  if (!item || item.status !== 'done' || !item.result) return;
+/** 单条结果详情列，内部布局与原来的单列详情一致 */
+function buildDetailColumn(item, result, index, total) {
+  const column = document.createElement('div');
+  column.className = 'detail-column';
 
-  const { result } = item;
   const isFake = result.label === 'fake';
   const confidence = isFake ? result.fakeProbability : result.realProbability;
+  const modelId = result.model ?? '';
+
+  const head = total > 1
+    ? `<div class="detail-column-head">
+         <span class="detail-column-index">结果 ${index + 1}</span>
+         <span class="detail-column-time mono">${formatClock(result.receivedAt)}</span>
+       </div>`
+    : '';
+
+  column.innerHTML = `
+    ${head}
+    <div class="detail-verdict-row">
+      <span class="tag tag-${isFake ? 'fake' : 'real'}">${isFake ? '伪造' : '真实'}</span>
+      <span class="detail-confidence mono">${formatPercent(confidence)}</span>
+    </div>
+
+    <div class="prob-split" title="伪造 / 真实 概率">
+      <span class="prob-split-fake" style="width: ${(result.fakeProbability * 100).toFixed(2)}%"></span>
+      <span class="prob-split-real" style="width: ${(result.realProbability * 100).toFixed(2)}%"></span>
+    </div>
+    <div class="prob-split-labels">
+      <span>伪造 <b class="mono">${formatPercent(result.fakeProbability)}</b></span>
+      <span>真实 <b class="mono">${formatPercent(result.realProbability)}</b></span>
+    </div>
+
+    <div class="detail-metrics">
+      <div class="detail-metric">
+        <span class="detail-metric-label">推理耗时</span>
+        <strong class="mono">${result.elapsedMs} ms</strong>
+      </div>
+      <div class="detail-metric">
+        <span class="detail-metric-label">伪造概率</span>
+        <strong class="mono">${formatPercent(result.fakeProbability)}</strong>
+      </div>
+    </div>
+
+    <section class="detail-section">
+      <div class="detail-section-head">
+        <h3>模型热力图</h3>
+      </div>
+      <div class="heatmap-frame">
+        <canvas width="448" height="448"></canvas>
+        <span class="heatmap-empty" hidden>暂无热力图数据</span>
+      </div>
+      <div class="heatmap-legend">
+        <span>低</span>
+        <div class="heatmap-gradient"></div>
+        <span>高</span>
+      </div>
+      <p class="hint">
+        *颜色越暖表示该区域越支持当前判定。
+      </p>
+    </section>
+
+    <section class="detail-section">
+      <div class="detail-section-head">
+        <h3>使用模型</h3>
+      </div>
+      <p class="detail-value"></p>
+      <p class="hint detail-model-id"></p>
+    </section>`;
+
+  const modelName = column.querySelector('.detail-value');
+  modelName.textContent = modelDisplayName(modelId);
+  const modelHint = column.querySelector('.detail-model-id');
+  modelHint.textContent = modelId ? `模型标识 · ${modelId}` : '';
+
+  drawHeatmap(
+    column.querySelector('canvas'),
+    column.querySelector('.heatmap-empty'),
+    item,
+    result,
+  );
+
+  return column;
+}
+
+function openDetail(key, activeIndex) {
+  const item = state.files.find((file) => file.key === key);
+  if (!item || item.results.length === 0) return;
 
   el.detailName.textContent = item.key;
   el.detailName.title = item.key;
 
-  el.detailVerdict.textContent = isFake ? '伪造' : '真实';
-  el.detailVerdict.className = `tag tag-${isFake ? 'fake' : 'real'}`;
-  el.detailConfidence.textContent = formatPercent(confidence);
+  const total = item.results.length;
+  const columns = item.results.map((result, index) =>
+    buildDetailColumn(item, result, index, total),
+  );
 
-  el.detailBarFake.style.width = `${(result.fakeProbability * 100).toFixed(2)}%`;
-  el.detailBarReal.style.width = `${(result.realProbability * 100).toFixed(2)}%`;
-  el.detailFakeProb.textContent = formatPercent(result.fakeProbability);
-  el.detailRealProb.textContent = formatPercent(result.realProbability);
+  el.detailColumns.innerHTML = '';
+  el.detailColumns.classList.toggle('single', total === 1);
+  for (const column of columns) el.detailColumns.appendChild(column);
 
-  el.detailElapsed.textContent = `${result.elapsedMs} ms`;
-  el.detailFakeProbCard.textContent = formatPercent(result.fakeProbability);
+  const active = Number.isInteger(activeIndex) && activeIndex >= 0 && activeIndex < total
+    ? activeIndex
+    : total - 1;
+  columns[active]?.classList.add('is-active');
 
-  const modelId = result.model ?? '';
-  const model = state.models.find((entry) => entry.id === modelId);
-  el.detailModel.textContent = model?.displayName ?? (modelId || '未知模型');
-  el.detailModelId.textContent = modelId ? `模型标识 · ${modelId}` : '';
-
-  drawHeatmap(item, result);
+  // 多结果时按列数横向铺开，列内布局不变
+  const naturalWidth = total * 300 + (total - 1) * 18 + 40;
+  const width = total === 1
+    ? Math.min(420, window.innerWidth - 24)
+    : Math.min(naturalWidth, window.innerWidth - 24);
+  el.detailDrawer.style.width = `${width}px`;
 
   el.detailDrawer.classList.add('open');
   el.detailDrawer.setAttribute('aria-hidden', 'false');
   el.detailOverlay.hidden = false;
   // 先取消 hidden 再加 class，保证滑入动画生效
-  requestAnimationFrame(() => el.detailOverlay.classList.add('open'));
+  requestAnimationFrame(() => {
+    el.detailOverlay.classList.add('open');
+    columns[active]?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
   document.body.classList.add('drawer-open');
 }
 
@@ -888,22 +1172,57 @@ function bindRowEvents(body) {
   if (!body) return;
 
   body.addEventListener('click', (event) => {
+    // 展开/收起某一组的子结果
+    const toggle = event.target.closest('.group-toggle');
+    if (toggle) {
+      const row = toggle.closest('tr[data-key]');
+      const item = row && state.files.find((file) => file.key === row.dataset.key);
+      if (item) {
+        item.expanded = !item.expanded;
+        renderRow(item);
+      }
+      return;
+    }
+
+    // 勾选框交给 change 事件处理，不触发详情
+    if (event.target.closest('input')) return;
+
     const row = event.target.closest('tr[data-key]');
-    if (row) openDetail(row.dataset.key);
+    if (!row) return;
+    const index = row.dataset.index === undefined ? undefined : Number(row.dataset.index);
+    openDetail(row.dataset.key, index);
+  });
+
+  body.addEventListener('change', (event) => {
+    const checkbox = event.target.closest('.row-select');
+    if (!checkbox) return;
+
+    const row = checkbox.closest('tr[data-key]');
+    if (!row) return;
+
+    if (checkbox.checked) state.selected.add(row.dataset.key);
+    else state.selected.delete(row.dataset.key);
+
+    applySelectionState(row.dataset.key);
+    updateActionButtons();
   });
 
   // 键盘操作：聚焦到行后回车/空格同样可以打开详情
   body.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
+    if (event.target.closest('input, button')) return;
+
     const row = event.target.closest('tr[data-key]');
     if (!row) return;
     event.preventDefault();
-    openDetail(row.dataset.key);
+    const index = row.dataset.index === undefined ? undefined : Number(row.dataset.index);
+    openDetail(row.dataset.key, index);
   });
 }
 
 function bindEvents() {
   el.loadBtn.addEventListener('click', handleLoad);
+  el.unloadBtn.addEventListener('click', handleUnload);
   el.modelSelect.addEventListener('change', renderModelStatus);
 
   el.pickFiles.addEventListener('click', () => el.fileInput.click());
@@ -931,6 +1250,9 @@ function bindEvents() {
 
   el.exportBtn.addEventListener('click', exportJson);
   el.clearBtn.addEventListener('click', clearResults);
+
+  if (el.inferBtn) el.inferBtn.addEventListener('click', runSelectedInference);
+  if (el.inferBtnFull) el.inferBtnFull.addEventListener('click', runSelectedInference);
 
   bindRowEvents(el.resultsBody);
   bindRowEvents(el.resultsBodyFull);

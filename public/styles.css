@@ -686,12 +686,95 @@ select:disabled {
 }
 
 /* 右侧表格列宽微调，因为空间变窄了 */
+.panel-results .col-select { width: 34px; }
 .panel-results .col-thumb { width: 48px; }
 .panel-results .col-verdict { width: 64px; }
 .panel-results .col-prob { width: 76px; }
 .panel-results .col-time { width: 70px; }
 .panel-results .col-state { width: 60px; }
 .panel-results .filename { max-width: none; } /* 让文字自适应 */
+
+/* 勾选列 */
+.col-select { width: 40px; }
+.cell-select {
+  text-align: center;
+  padding-left: 6px;
+  padding-right: 4px;
+}
+.row-select {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+/* 文件名列：主行显示文件名 + 副标题，子行显示模型名 */
+.cell-name {
+  overflow: hidden;
+  padding-left: 12px;
+}
+.file-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.group-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 同一图片的每条结果作为子行展示 */
+tr.result-row td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  background: var(--panel);
+}
+tr.result-row .cell-name {
+  padding-left: 26px;
+}
+.result-model {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+.result-index {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 已勾选的行 */
+tr.row-selected td {
+  background: var(--accent-soft);
+}
+
+/* 展开 / 收起按钮 */
+.group-toggle {
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--accent);
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.group-toggle:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
 
 .filename {
   max-width: 0; /* 👈 最关键的一行：告诉浏览器不要根据内容撑开宽度 */
@@ -781,8 +864,8 @@ td {
 
 
 
-th:nth-child(3),
-td:nth-child(3) {
+th:nth-child(4),
+td:nth-child(4) {
   text-align: center;
 }
 
@@ -1020,10 +1103,10 @@ tbody tr:last-child td {
   /* 恢复显示之前桌面端隐藏的列 */
   .panel-results .col-time,
   .panel-results .col-state,
-  .panel-results th:nth-child(5),
   .panel-results th:nth-child(6),
-  .panel-results td:nth-child(5),
-  .panel-results td:nth-child(6) {
+  .panel-results th:nth-child(7),
+  .panel-results td:nth-child(6),
+  .panel-results td:nth-child(7) {
     display: table-cell;
   }
 
@@ -1041,8 +1124,8 @@ tbody tr:last-child td {
 /* 针对极小屏幕（手机）的表格优化 */
 @media (max-width: 600px) {
   .panel-results .col-time,
-  .panel-results th:nth-child(5),
-  .panel-results td:nth-child(5) {
+  .panel-results th:nth-child(6),
+  .panel-results td:nth-child(6) {
     display: none; /* 手机上只隐藏耗时，保留状态 */
   }
   
@@ -1164,11 +1247,55 @@ body.drawer-open {
 .drawer-body {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 18px;
   padding: 18px 20px 28px;
+}
+
+/* ===== 多结果并排详情 ===== */
+.detail-columns {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.detail-column {
+  flex: 0 0 300px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* 只有一条结果时保持原来的单列铺满布局 */
+.detail-columns.single .detail-column {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.detail-column-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.detail-column-index {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--muted);
+}
+
+.detail-column-time {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.detail-column.is-active .detail-column-index {
+  color: var(--accent);
 }
 
 .detail-verdict-row {

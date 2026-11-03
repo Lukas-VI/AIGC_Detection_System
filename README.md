@@ -15,7 +15,7 @@ npm install
 npm start
 ```
 
-默认访问 `http://localhost:3000`。若端口被占用，服务会自动尝试后续端口；也可在 PowerShell 中用 `$env:PORT=3100; npm start` 指定端口。
+默认访问 `http://localhost:3100`。若端口被占用，服务会自动尝试后续端口；也可在 PowerShell 中用 `$env:PORT=3000; npm start` 指定端口。
 
 ## 模型权重
 

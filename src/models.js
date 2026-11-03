@@ -21,11 +21,13 @@ function displayName(id) {
 
 /**
  * 负责扫描权重、按需加载 ONNX 会话、串行执行推理。
- * 同一时间只保留一个已加载模型，避免多个 1.1GB 会话占满内存。
+ * 支持同时保留多个已加载模型：切换模型不再卸载旧会话，
+ * 只有手动卸载或进程退出时才释放显存/内存。
  */
 class ModelManager {
   #states = new Map();
-  #session = null;
+  /** id -> InferenceSession，允许多个模型同时驻留 */
+  #sessions = new Map();
   #activeId = null;
   #loadingId = null;
   #queue = Promise.resolve();
@@ -34,7 +36,7 @@ class ModelManager {
     return this.#activeId;
   }
 
-  /** 扫描 weight 目录，返回模型列表及当前加载状态 */
+  /** 扫描 weight 目录，返回模型列表及各模型独立的加载状态 */
   async list() {
     const entries = await fsp.readdir(WEIGHT_DIR, { withFileTypes: true }).catch(() => []);
     const models = [];
@@ -65,7 +67,7 @@ class ModelManager {
     };
   }
 
-  /** 开始后台加载模型；返回当前快照，前端通过轮询获取进度 */
+  /** 开始后台加载模型；已加载的模型不会因为加载新模型而被卸载 */
   async startLoad(id) {
     if (this.#loadingId) {
       throw new HttpError(409, `模型 ${this.#loadingId} 正在加载，请稍候`);
@@ -73,7 +75,8 @@ class ModelManager {
     if (id !== path.basename(id) || !id) {
       throw new HttpError(400, '非法的模型标识');
     }
-    if (this.#activeId === id && this.#session) {
+    if (this.#sessions.has(id)) {
+      this.#activeId = id;
       return this.#snapshot(id);
     }
 
@@ -88,7 +91,6 @@ class ModelManager {
       throw new HttpError(404, '该模型尚未转换为 ONNX，请先运行 tools/export_onnx.py');
     }
 
-    this.#disposeSession();
     this.#states.set(id, { status: 'loading', phase: 'reading', progress: 0, error: null, loadMs: null });
 
     // 后台执行，错误写入状态，避免请求一直挂起
@@ -103,18 +105,65 @@ class ModelManager {
     return this.#snapshot(id);
   }
 
-  /** 串行推理，避免多个请求同时抢占 CPU */
-  infer(tensor) {
-    const session = this.#session;
+  /** 手动卸载指定模型，释放其会话 */
+  async unload(id) {
+    if (id !== path.basename(id) || !id) {
+      throw new HttpError(400, '非法的模型标识');
+    }
+    if (this.#loadingId === id) {
+      throw new HttpError(409, '模型正在加载，无法卸载');
+    }
+
+    const session = this.#sessions.get(id);
+    if (session) {
+      this.#sessions.delete(id);
+      try {
+        await session.release?.();
+      } catch {
+        // release 失败不影响状态重置
+      }
+    }
+
+    this.#states.set(id, { ...IDLE_STATE });
+
+    if (this.#activeId === id) {
+      const next = this.#sessions.keys().next();
+      this.#activeId = next.done ? null : next.value;
+    }
+
+    return this.#snapshot(id);
+  }
+
+  /** 进程退出时释放全部模型会话 */
+  disposeAll() {
+    for (const session of this.#sessions.values()) {
+      try {
+        session.release?.();
+      } catch {
+        // 退出阶段忽略释放错误
+      }
+    }
+    this.#sessions.clear();
+    this.#activeId = null;
+    for (const id of this.#states.keys()) {
+      this.#states.set(id, { ...IDLE_STATE });
+    }
+  }
+
+  /** 串行推理；modelId 指定本次要使用的模型，缺省使用最后加载的模型 */
+  infer(tensor, modelId) {
+    const id = typeof modelId === 'string' && modelId ? modelId : this.#activeId;
+    const session = id ? this.#sessions.get(id) : null;
     if (!session) {
-      return Promise.reject(new HttpError(409, '模型尚未加载'));
+      return Promise.reject(new HttpError(409, `模型 ${id ?? ''} 尚未加载`));
     }
 
     const job = this.#queue.then(async () => {
-      if (this.#session !== session) {
-        throw new HttpError(409, '模型已切换，请重新检测');
+      if (this.#sessions.get(id) !== session) {
+        throw new HttpError(409, '模型已卸载，请重新检测');
       }
-      return this.#run(session, tensor);
+      const result = await this.#run(session, tensor);
+      return { ...result, model: id };
     });
     this.#queue = job.catch(() => {});
     return job;
@@ -170,7 +219,7 @@ class ModelManager {
     });
     buffer = null; // 交给 GC，避免常驻两份 1.1GB 数据
 
-    this.#session = session;
+    this.#sessions.set(id, session);
     this.#activeId = id;
     this.#states.set(id, {
       status: 'ready',
@@ -181,30 +230,15 @@ class ModelManager {
     });
   }
 
-  #disposeSession() {
-    if (!this.#session) return;
-    try {
-      this.#session.release?.();
-    } catch {
-      // release 失败不影响后续加载
-    }
-    this.#session = null;
-    this.#activeId = null;
-  }
-
   #update(id, patch) {
     const current = this.#states.get(id) ?? { ...IDLE_STATE };
     this.#states.set(id, { ...current, ...patch });
   }
 
-  /** 只有当前加载中的模型才展示 loading/progress，其余展示 idle */
+  /** 每个模型独立展示自己的状态，已加载的模型不会因其他模型加载而变回 idle */
   #snapshot(id) {
     const state = this.#states.get(id);
-    if (!state) return { ...IDLE_STATE };
-    if (this.#activeId === id || this.#loadingId === id || state.status === 'error') {
-      return { ...state };
-    }
-    return { ...IDLE_STATE };
+    return state ? { ...state } : { ...IDLE_STATE };
   }
 }
 

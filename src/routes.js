@@ -21,6 +21,11 @@ api.post('/models/:id/load', asyncHandler(async (req, res) => {
   res.status(202).json({ model });
 }));
 
+api.post('/models/:id/unload', asyncHandler(async (req, res) => {
+  const model = await modelManager.unload(req.params.id);
+  res.json({ model });
+}));
+
 api.post('/detect', upload.single('image'), asyncHandler(async (req, res) => {
   if (!req.file) {
     throw new HttpError(400, '请上传一张图片');
@@ -31,8 +36,11 @@ api.post('/detect', upload.single('image'), asyncHandler(async (req, res) => {
     ? req.body.name
     : req.file.originalname;
 
-  const tensor = await imageToTensor(req.file.buffer);
-  const result = await modelManager.infer(tensor);
+  // 指定本次推理使用的模型；未指定时使用最后加载的模型
+  const modelId = typeof req.body.model === 'string' && req.body.model ? req.body.model : undefined;
 
-  res.json({ file: name, model: modelManager.activeId, ...result });
+  const tensor = await imageToTensor(req.file.buffer);
+  const result = await modelManager.infer(tensor, modelId);
+
+  res.json({ file: name, ...result });
 }));

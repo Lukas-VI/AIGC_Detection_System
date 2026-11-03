@@ -53,6 +53,7 @@
             <div class="model-row">
               <select id="model-select" aria-label="选择检测模型"></select>
               <button id="load-model" class="btn btn-primary">加载模型</button>
+              <button id="unload-model" class="btn" disabled>卸载</button>
             </div>
 
             <div id="load-progress" class="progress" hidden>
@@ -113,6 +114,7 @@
               <div class="actions">
                 <button id="export-json" class="btn" disabled>导出 JSON</button>
                 <button id="clear-results" class="btn" disabled>清空</button>
+                <button id="infer-results" class="btn" disabled>推理</button>
               </div>
             </div>
 
@@ -121,6 +123,7 @@
               <div class="table-header">
                 <table>
                   <colgroup>
+                    <col class="col-select">
                     <col class="col-thumb">
                     <col>
                     <col class="col-verdict">
@@ -130,6 +133,7 @@
                   </colgroup>
                   <thead>
                     <tr>
+                      <th aria-label="选择"></th>
                       <th>预览</th>
                       <th>文件名</th>
                       <th>结果</th>
@@ -145,6 +149,7 @@
               <div class="table-body">
                 <table>
                   <colgroup>
+                    <col class="col-select">
                     <col class="col-thumb">
                     <col>
                     <col class="col-verdict">
@@ -170,6 +175,7 @@
           <div class="actions">
             <button id="export-json-full" class="btn">导出 JSON</button>
             <button id="clear-results-full" class="btn">清空</button>
+            <button id="infer-results-full" class="btn" disabled>推理</button>
           </div>
         </div>
         <!-- 提示：如果你想在"结果"页放一个全屏大表格，可以把右侧的 table-wrap 移到这里来 -->
@@ -178,6 +184,7 @@
             <div class="table-header">
               <table>
                 <colgroup>
+                  <col class="col-select">
                   <col class="col-thumb">
                   <col>
                   <col class="col-verdict">
@@ -187,6 +194,7 @@
                 </colgroup>
                 <thead>
                   <tr>
+                    <th aria-label="选择"></th>
                     <th>预览</th>
                     <th>文件名</th>
                     <th>结果</th>
@@ -202,6 +210,7 @@
             <div class="table-body">
               <table>
                 <colgroup>
+                  <col class="col-select">
                   <col class="col-thumb">
                   <col>
                   <col class="col-verdict">
@@ -246,56 +255,7 @@
     </header>
 
     <div class="drawer-body">
-      <div class="detail-verdict-row">
-        <span id="detail-verdict" class="tag">—</span>
-        <span id="detail-confidence" class="detail-confidence mono">—</span>
-      </div>
-
-      <div class="prob-split" title="伪造 / 真实 概率">
-        <span id="detail-bar-fake" class="prob-split-fake" style="width: 0%"></span>
-        <span id="detail-bar-real" class="prob-split-real" style="width: 100%"></span>
-      </div>
-      <div class="prob-split-labels">
-        <span>伪造 <b id="detail-fake-prob" class="mono">—</b></span>
-        <span>真实 <b id="detail-real-prob" class="mono">—</b></span>
-      </div>
-
-      <div class="detail-metrics">
-        <div class="detail-metric">
-          <span class="detail-metric-label">推理耗时</span>
-          <strong id="detail-elapsed" class="mono">—</strong>
-        </div>
-        <div class="detail-metric">
-          <span class="detail-metric-label">伪造概率</span>
-          <strong id="detail-fake-prob-card" class="mono">—</strong>
-        </div>
-      </div>
-
-      <section class="detail-section">
-        <div class="detail-section-head">
-          <h3>模型热力图</h3>
-        </div>
-        <div class="heatmap-frame">
-          <canvas id="detail-canvas" width="448" height="448"></canvas>
-          <span id="detail-heatmap-empty" class="heatmap-empty" hidden>暂无热力图数据</span>
-        </div>
-        <div class="heatmap-legend">
-          <span>低</span>
-          <div class="heatmap-gradient"></div>
-          <span>高</span>
-        </div>
-        <p class="hint">
-          *颜色越暖表示该区域越支持当前判定。
-        </p>
-      </section>
-
-      <section class="detail-section">
-        <div class="detail-section-head">
-          <h3>使用模型</h3>
-        </div>
-        <p id="detail-model" class="detail-value">—</p>
-        <p id="detail-model-id" class="hint"></p>
-      </section>
+      <div id="detail-columns" class="detail-columns"></div>
     </div>
   </aside>
 

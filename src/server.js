@@ -51,3 +51,12 @@ function startServer(port, retries = 5) {
 }
 
 startServer(PORT);
+
+// 关闭系统时释放全部已加载模型
+process.on('exit', () => modelManager.disposeAll());
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.once(signal, () => {
+    modelManager.disposeAll();
+    process.exit(0);
+  });
+}

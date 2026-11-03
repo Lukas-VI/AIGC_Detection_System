@@ -9,7 +9,7 @@ export const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
 export const WEIGHT_DIR = path.join(ROOT_DIR, 'weight');
 export const ONNX_DIR = path.join(WEIGHT_DIR, 'onnx');
 
-export const PORT = Number(process.env.PORT) || 3000;
+export const PORT = Number(process.env.PORT) || 3100;
 // 默认只监听本机；需要局域网访问时设置 HOST=0.0.0.0
 export const HOST = process.env.HOST || '127.0.0.1';
 
