@@ -4,6 +4,7 @@ import path from 'node:path';
 import * as ort from 'onnxruntime-node';
 import { INFERENCE_THREADS, ONNX_DIR, WEIGHT_DIR } from './config.js';
 import { HttpError } from './errors.js';
+import { MULTIMODAL_MODEL_ID, MULTIMODAL_MODEL_NAME, getProviderSettings } from './multimodal.js';
 
 const IDLE_STATE = Object.freeze({ status: 'idle', phase: 'idle', progress: 0, error: null, loadMs: null });
 
@@ -60,6 +61,22 @@ class ModelManager {
         ...state,
       });
     }
+
+    // 多模态模型走外部 API，始终可用，无需加载 ONNX
+    models.push({
+      id: MULTIMODAL_MODEL_ID,
+      displayName: MULTIMODAL_MODEL_NAME,
+      pthSize: null,
+      onnxAvailable: true,
+      onnxSize: null,
+      kind: 'multimodal',
+      configured: getProviderSettings().hasKey,
+      status: 'ready',
+      phase: 'ready',
+      progress: 1,
+      error: null,
+      loadMs: null,
+    });
 
     return {
       activeId: this.#activeId,

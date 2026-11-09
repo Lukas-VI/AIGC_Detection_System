@@ -63,6 +63,49 @@ body::-webkit-scrollbar {
   display: none; /* Chrome / Safari / Edge */
 }
 
+/* ===== Toast 吐司通知 ===== */
+.toast-container {
+  position: fixed;
+  top: 80px; /* 位于 TopBar 下方 */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none; /* 让鼠标可以点透 */
+}
+
+.toast {
+  background: var(--bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text);
+  padding: 10px 20px;
+  border-radius: 999px; /* 胶囊形状 */
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  
+  /* 动画初始状态 */
+  opacity: 0;
+  transform: translateY(-20px) scale(0.95);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* 如果你想区分错误提示，可以加上这个类 */
+.toast.error {
+  background: rgba(220, 38, 38, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 
 /* ====== TopBar 样式 ====== */
 .topbar {
@@ -79,7 +122,118 @@ body::-webkit-scrollbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   padding: 16px 0;
+}
+
+/* ===== 项目菜单 ===== */
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+
+.project-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-name {
+  width: 150px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 8px;
+  /* transition: border-color .15s, background .15s; */
+  padding-left: 32px !important; /* 留出图标的宽度，具体数值可以根据你的原 padding 微调 */
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+/* 包裹容器 */
+.project-name-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 小铅笔图标 */
+.edit-icon {
+  position: absolute;
+  left: 10px; /* 图标的水平位置 */
+  color: var(--muted);
+  pointer-events: none; /* 穿透点击，点击图标也能直接聚焦输入框 */
+  transition: color 0.2s;
+}
+
+/* 鼠标悬停/聚焦时的交互反馈 */
+.project-name-wrapper:hover .edit-icon,
+.project-name:focus + .edit-icon {
+  color: var(--text); /* 悬停或聚焦时，图标颜色加深 */
+}
+
+.project-name:hover {
+  border-color: var(--border);
+  background: var(--panel-soft);
+}
+
+.project-name:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--panel);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
+}
+
+.project-menu {
+  position: relative;
+}
+
+.project-menu-btn {
+  white-space: nowrap;
+}
+
+.project-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 200;
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 10px 30px rgba(16, 24, 40, .16);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-dropdown[hidden] {
+  display: none;
+}
+
+.project-dropdown button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.project-dropdown button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 /* 让 TopBar 内部的 wrap 不受全局宽度限制，铺满全屏 */
@@ -299,6 +453,7 @@ main {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .hint {
@@ -383,6 +538,167 @@ main {
 .model-row {
   display: flex;
   gap: 10px;
+}
+
+/* 模型下拉选单 */
+.model-select {
+  position: relative;
+}
+
+.model-select-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+
+.model-select-toggle:hover {
+  border-color: var(--border-strong);
+}
+
+.model-select-toggle[aria-expanded="true"] {
+  border-color: var(--accent);
+}
+
+.model-select-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-select-caret {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+  transition: transform .15s;
+}
+
+.model-select-toggle[aria-expanded="true"] .model-select-caret {
+  transform: rotate(180deg);
+}
+
+.model-dropdown {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .18);
+}
+
+.model-dropdown[hidden] {
+  display: none;
+}
+
+.model-dropdown .model-item {
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 8px;
+}
+
+.model-dropdown .model-item-status {
+  font-size: 10px;
+  padding: 2px 6px;
+}
+
+/* 模型多选清单 */
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-soft);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .15s, background .15s;
+}
+
+.model-item:hover {
+  border-color: var(--border-strong);
+}
+
+.model-item.is-checked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.model-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--accent);
+  flex: none;
+  cursor: pointer;
+}
+
+.model-item input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
+.model-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-item-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-item-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.model-item-status {
+  flex: none;
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
+.model-empty {
+  padding: 14px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
 }
 
 select {
@@ -811,6 +1127,7 @@ tr.row-selected td {
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--panel-soft);
+  position: relative;
 }
 
 /* 4. 定制表体的滚动条，避免太突兀 */
@@ -862,7 +1179,20 @@ td {
   vertical-align: middle;
 }
 
-
+.empty-state {
+  /* 绝对定位铺满父容器，无视原本的文档流 */
+  position: absolute;
+  inset: 0; 
+  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  
+  /* 保持和表格底色一致，防止穿透看到下面的空表格 */
+  background: var(--panel-soft); 
+}
 
 th:nth-child(4),
 td:nth-child(4) {
@@ -896,6 +1226,82 @@ tbody tr:last-child td {
   font-size: 12px;
   font-weight: 600; /* 加粗，提升视觉辨识度 */
   white-space: nowrap;
+}
+
+/* 模型下拉中的多模态提示词 */
+.model-extra {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+.model-extra-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.model-extra textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.model-extra textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* 关于页：多模态 API 设置 */
+.provider-config {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.provider-form {
+  display: grid;
+  gap: 12px;
+  max-width: 520px;
+  margin-top: 12px;
+}
+
+.provider-field {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.provider-field input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.provider-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.provider-actions {
+  display: flex;
+  gap: 8px;
 }
 
 /* 伪造标签样式 */
@@ -1466,4 +1872,218 @@ body.drawer-open {
   .drawer-body {
     padding: 16px 16px 24px;
   }
+}
+
+/* ===== 筛选与排序 ===== */
+.filter-select {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 94px;
+  padding: 7px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+th.sortable:hover {
+  color: var(--text);
+}
+
+th.sortable.is-sorted {
+  color: var(--accent);
+}
+
+.sort-indicator {
+  margin-left: 3px;
+  font-size: 10px;
+  color: var(--accent);
+}
+
+/* ===== 空状态插画 ===== */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 36px 20px 44px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-state[hidden] {
+  display: none;
+}
+
+.empty-illustration {
+  width: 96px;
+  height: 96px;
+  color: var(--border-strong);
+  opacity: .9;
+}
+
+.empty-title {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.empty-sub {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ===== 分析中的骨架屏 ===== */
+.skeleton {
+  display: inline-block;
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--border) 25%, var(--panel-soft) 37%, var(--border) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.2s ease infinite;
+}
+
+.skeleton-tag {
+  width: 46px;
+  height: 22px;
+}
+
+.skeleton-text {
+  width: 58px;
+}
+
+.skeleton-text.short {
+  width: 46px;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* ===== 抽屉头部按钮 ===== */
+.drawer-head-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawer-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-small {
+  padding: 6px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* ===== 人工复核卡片 ===== */
+.detail-summary {
+  display: block;
+}
+
+.review-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  background: var(--panel-soft);
+  box-shadow: var(--shadow-sm);
+}
+
+.review-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.review-card-title {
+  font-size: 11px;
+  letter-spacing: .08em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.review-card-count {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.review-card-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.review-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.review-status.is-confirmed {
+  color: var(--real);
+}
+
+.review-status.is-misjudged {
+  color: var(--fake);
+}
+
+.review-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.review-status.is-confirmed .review-dot {
+  background: var(--real);
+}
+
+.review-status.is-misjudged .review-dot {
+  background: var(--fake);
+}
+
+.review-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.review-labels {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.review-labels .btn.is-selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 概率与耗时保持单行，避免窄表格里 "ms" 掉到下一行 */
+td.prob,
+td.time {
+  white-space: nowrap;
 }

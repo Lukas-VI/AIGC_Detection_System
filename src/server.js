@@ -6,6 +6,7 @@ import { api } from './routes.js';
 const app = express();
 app.disable('x-powered-by');
 
+app.use(express.json({ limit: '64kb' }));
 app.use(express.static(PUBLIC_DIR));
 app.use('/api', api);
 
